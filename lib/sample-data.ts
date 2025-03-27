@@ -48,3 +48,25 @@ export const contactsData: ContactData[] = [
   },
 ]
 
+export const contactData = [
+  {
+    id: "1",
+    name: "John Doe",
+    title: "Software Engineer",
+    company: "TechCorp",
+    website: "techcorp.com",
+    companyEmail: "info@techcorp.com",
+    location: "San Francisco, CA",
+    industry: "Technology",
+    seniority: "Senior",
+    department: "Engineering",
+    companyLocation: "San Francisco, CA",
+    employeeSize: "500-1000",
+    socials: {
+      linkedin: "https://linkedin.com/in/johndoe",
+      twitter: "https://twitter.com/johndoe",
+    },
+  },
+  // Add more sample data as needed
+];
+
