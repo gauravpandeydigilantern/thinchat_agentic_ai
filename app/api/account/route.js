@@ -3,11 +3,24 @@
 import { db } from '@/lib/db/drizzle'; // Make sure this path is correct
 import { accounts, contacts } from '@/lib/db/schema'; // Make sure this path is correct
 import { eq } from 'drizzle-orm';
+import { NextResponse } from 'next/server';
 
 // dotenv.config();
 
 
 export async function POST(req) {
+
+    // Handle OPTIONS request (preflight)
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -148,6 +161,24 @@ export async function POST(req) {
           'Content-Type': 'application/json',
         },
       }
+    );
+  }
+}
+
+
+
+export async function GET(req) {
+  try {
+    const existingAccount = await db.select()
+      .from(accounts)
+      .limit(1);
+
+    return NextResponse.json({ leads: existingAccount });
+  } catch (error) {
+    console.error("Database error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch leads data", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
     );
   }
 }
