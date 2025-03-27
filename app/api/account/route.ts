@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import NextCors from "nextjs-cors";
 import { db } from "@/lib/db/drizzle";
 import { accounts, contacts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
