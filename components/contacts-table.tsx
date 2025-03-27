@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Search,
   Filter,
@@ -69,6 +69,29 @@ export function ContactsTable({
   onAddToList,
   onToggleCrmPanel,
 }: ContactsTableProps) {
+  const [contactsData, setContactsData] = useState<ContactData[]>([]); // Replace static data with state
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchContacts() {
+      try {
+        const response = await fetch("/api/contacts");
+        const result = await response.json();
+        setContactsData(result);
+      } catch (error) {
+        console.error("Failed to fetch contacts:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchContacts();
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   const [showingResults, setShowingResults] = useState("1 - 1 of 1")
   const [selectAll, setSelectAll] = useState(false)
 
@@ -372,9 +395,9 @@ export function ContactsTable({
     setSelectAll(checked)
     if (checked) {
       onSelectContact("all", true)
-      data.forEach((item) => onSelectContact(item.id, true))
+      contactsData.forEach((item) => onSelectContact(item.id, true))
     } else {
-      data.forEach((item) => onSelectContact(item.id, false))
+      contactsData.forEach((item) => onSelectContact(item.id, false))
     }
   }
 
@@ -515,8 +538,8 @@ export function ContactsTable({
             </tr>
           </thead>
           <tbody>
-            {data.length > 0 ? (
-              data.map((item) => (
+            {contactsData.length > 0 ? (
+              contactsData.map((item) => (
                 <tr key={item.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="w-10 px-4 py-4">
                     <Checkbox
