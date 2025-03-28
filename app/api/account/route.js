@@ -11,15 +11,15 @@ import { NextResponse } from 'next/server';
 export async function POST(req) {
 
     // Handle OPTIONS request (preflight)
-    if (req.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
+    // if (req.method === 'OPTIONS') {
+    //   return new Response(null, {
+    //     headers: {
+    //       'Access-Control-Allow-Origin': '*',
+    //       'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    //       'Access-Control-Allow-Headers': 'Content-Type',
+    //     },
+    //   });
+    // }
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -118,7 +118,7 @@ export async function POST(req) {
               set: {
                 account_id: accountId,
                 type: item.type,
-                first_name: item.firstName || 'N/A',
+                first_name: item.name || 'N/A',
                 last_name: item.lastName || 'N/A',
                 title: item.title || 'N/A',
                 company: item.company || 'N/A',
