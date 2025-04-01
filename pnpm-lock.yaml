@@ -11,6 +11,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.54.2(react@19.0.0))
+      '@prisma/client':
+        specifier: ^6.5.0
+        version: 6.5.0(typescript@5.8.2)
       '@radix-ui/react-accordion':
         specifier: ^1.2.2
         version: 1.2.3(@types/react-dom@19.0.4(@types/react@19.0.12))(@types/react@19.0.12)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -112,7 +115,7 @@ importers:
         version: 4.1.0
       drizzle-orm:
         specifier: ^0.41.0
-        version: 0.41.0(postgres@3.4.5)
+        version: 0.41.0(@prisma/client@6.5.0(typescript@5.8.2))(postgres@3.4.5)
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.0.0)
@@ -416,6 +419,18 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@prisma/client@6.5.0':
+    resolution: {integrity: sha512-M6w1Ql/BeiGoZmhMdAZUXHu5sz5HubyVcKukbLs3l0ELcQb8hTUJxtGEChhv4SVJ0QJlwtLnwOLgIRQhpsm9dw==}
+    engines: {node: '>=18.18'}
+    peerDependencies:
+      prisma: '*'
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      prisma:
+        optional: true
+      typescript:
+        optional: true
 
   '@radix-ui/number@1.1.0':
     resolution: {integrity: sha512-V3gRzhVNU1ldS5XhAPTom1fOIo4ccrjjJgmE+LI2h/WaFpHmx0MQApT+KZHnx8abG6Avtfcz4WoEciMnpFT3HQ==}
@@ -2219,6 +2234,10 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
+  '@prisma/client@6.5.0(typescript@5.8.2)':
+    optionalDependencies:
+      typescript: 5.8.2
+
   '@radix-ui/number@1.1.0': {}
 
   '@radix-ui/primitive@1.1.1': {}
@@ -3124,8 +3143,9 @@ snapshots:
       '@babel/runtime': 7.27.0
       csstype: 3.1.3
 
-  drizzle-orm@0.41.0(postgres@3.4.5):
+  drizzle-orm@0.41.0(@prisma/client@6.5.0(typescript@5.8.2))(postgres@3.4.5):
     optionalDependencies:
+      '@prisma/client': 6.5.0(typescript@5.8.2)
       postgres: 3.4.5
 
   dunder-proto@1.0.1:

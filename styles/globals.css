@@ -91,4 +91,8 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  .sidebar {
+    background-color: hsl(var(--sidebar-background));
+    color: hsl(var(--sidebar-foreground));
+  }
 }

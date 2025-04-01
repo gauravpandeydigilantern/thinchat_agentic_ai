@@ -1,57 +1,47 @@
+// Add this helper function at the top
+function createResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
 
-// import dotenv from 'dotenv';
 import { db } from '@/lib/db/drizzle'; // Make sure this path is correct
 import { accounts, contacts } from '@/lib/db/schema'; // Make sure this path is correct
 import { eq } from 'drizzle-orm';
-import { NextResponse } from 'next/server';
-import axios, { AxiosError } from 'axios';
-import { count } from 'console';
 import { sql } from 'drizzle-orm';
-// dotenv.config();
-
 
 export async function POST(req) {
-
-
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  }
-
-  const data = await req.json();
-  
-  if (!Array.isArray(data) || data.length === 0) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid data: Expected an array of records' }),
-      {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return createResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
+    const data = await req.json();
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      return createResponse({ error: 'Invalid data: Expected an array of records' }, 400);
+    }
+
     let insertedAccounts = 0;
     let insertedContacts = 0;
     const failedRecords = [];
 
     const sortedData = data.sort((a, b) => {
-        if (a.type === b.type) return 0;
-        if (a.type === "Account") return -1;
-        return 1;
-      });
-      
-    for (const item of data) {
+      if (a.type === b.type) return 0;
+      if (a.type === "Account") return -1;
+      return 1;
+    });
+
+    for (const item of sortedData) {
       try {
         // Handle Accounts
         if (item.type === 'Account' && item.company_url && item.company_url !== 'N/A') {
-            console.log(item.company_url,'item.company_url')
           await db.insert(accounts)
             .values({
               name: item.name || null,
@@ -75,19 +65,15 @@ export async function POST(req) {
         // Handle Contacts (Leads)
         if (item.type === 'Lead' && item.profile_url && item.profile_url !== 'N/A') {
           let accountId = null;
-        //   if (item.company_url && item.company_url !== 'N/A') {
-            // console.log(item.company,'item.company')
-            const existingAccount = await db.select()
-              .from(accounts)
-              .where(eq(accounts.name, item.company))
-              .limit(1);
-            // console.log(existingAccount,'existingAccount')
-            if (existingAccount.length > 0) {
-              accountId = existingAccount[0].id;
-            
-            }
-          
-        //   console.log('accountId:', accountId);
+          const existingAccount = await db.select()
+            .from(accounts)
+            .where(eq(accounts.name, item.company))
+            .limit(1);
+
+          if (existingAccount.length > 0) {
+            accountId = existingAccount[0].id;
+          }
+
           await db.insert(contacts)
             .values({
               account_id: accountId,
@@ -131,124 +117,88 @@ export async function POST(req) {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        message: `Successfully processed ${insertedAccounts} accounts and ${insertedContacts} contacts`,
-        failedRecords
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    return addCorsHeaders(response);
+    return createResponse({
+      success: true,
+      message: `Successfully processed ${insertedAccounts} accounts and ${insertedContacts} contacts`,
+      data: { insertedAccounts, insertedContacts },
+      failedRecords
+    });
+
   } catch (error) {
-    console.error('Error inserting data:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    console.error('Error processing request:', error);
+    return createResponse({ 
+      success: false,
+      error: 'Internal server error',
+      message: error.message 
+    }, 500);
   }
 }
 
+export async function GET(req) {
+  try {
+    const url = new URL(req.url);
+    const type = url.searchParams.get('type');
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '10');
 
+    if (type === 'mycontact') {
+      const { data, count } = await fetchmycontact(page, pageSize);
+      return createResponse({
+        success: true,
+        data,
+        pagination: {
+          page,
+          pageSize,
+          total: count
+        }
+      });
+    }
 
+    return createResponse({ 
+      success: false,
+      error: 'Invalid type parameter' 
+    }, 400);
+
+  } catch (error) {
+    console.error('Error processing request:', error);
+    return createResponse({ 
+      success: false,
+      error: 'Internal server error',
+      message: error.message 
+    }, 500);
+  }
+}
 
 async function fetchmycontact(page = 1, pageSize = 10) {
   try {
     const offset = (page - 1) * pageSize;
 
-    // Fetch paginated data
-    // const data = await db('accounts')
-    //   .select('*')  // Ensure you're selecting fields explicitly
-    //   .offset(offset)
-    //   .limit(pageSize);
+    const [data, countResult] = await Promise.all([
+      db.select({
+        id: contacts.id,
+        name: sql`CONCAT(first_name, ' ', last_name)`,
+        title: contacts.title,
+        company: contacts.company,
+        location: contacts.location,
+        companyEmail: contacts.email,
+        connections: contacts.connections,
+        about: contacts.about,
+        profile_url: contacts.profile_url,
+        insights: contacts.insights
+      })
+      .from(contacts)
+      .offset(offset)
+      .limit(pageSize),
 
-    const data = await db.select( {
-      id: contacts.id, 
-      name: sql`CONCAT(first_name, ' ', last_name)`, 
-      title: contacts.title, 
-      company: contacts.company, 
-      location: contacts.location, 
-      companyEmail: contacts.email, 
-      connections: contacts.connections, 
-      about: contacts.about, 
-      profile_url: contacts.profile_url, 
-      insights: contacts.insights}).from(contacts).offset(offset).limit(pageSize);
+      db.select({ count: sql`count(*)` }).from(contacts)
+    ]);
 
-    // Get total count
-    // const totalCountResult = await db('accounts')
-    //   .count('* as count')
-    //   .first();
-
-    // const totalCount = totalCountResult ? parseInt(totalCountResult.count, 10) : 0;
-      const totalCount = 0;
     return {
-      data: data,
-      count: totalCount
+      data,
+      count: Number(countResult[0].count)
     };
   } catch (error) {
     console.error('Error fetching contacts:', error);
     throw new Error('Failed to fetch contacts');
   }
-}
-
-
-
-export async function GET(req) {
-  const url = new URL(req.url);
-  const type = url.searchParams.get('type');
-  const workspaceId = url.searchParams.get('wid');
-
-  try {
-    let response;
-
-    if (type === 'mycontact') {
-      response = await fetchmycontact();
-    } 
-    // else if (type === 'workspace' && workspaceId) {
-    //   response = await fetchWorkspaceById(workspaceId);
-    // } else if (type === 'datasets' && workspaceId) {
-    //   response = await fetchDatasetsByWorkspaceId(workspaceId);
-    // } else if (type === 'default') {
-    //   response = await fetchDefaultDataset();
-    // } else if (type === 'fileuploadprogress') {
-    //   response = await fetchFileUploadProgress(workspaceId);
-    // }
-    else {
-      return NextResponse.json({ message: 'Invalid type parameter' }, { status: 400 });
-    }
-
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    if (error instanceof AxiosError) {
-      return NextResponse.json(
-        { message: `${error.response.data.detail || error.message}` },
-        { status: error.response.status },
-      );
-    } else {
-      return NextResponse.json({ message: `Error fetching ${type}: ${error}` }, { status: 500 });
-    }
-  }
-
-  // try {
-  //   const existingAccount = await db.select()
-  //     .from(accounts);
-
-  //   return NextResponse.json({ leads: existingAccount });
-  // } catch (error) {
-  //   console.error("Database error:", error);
-  //   return NextResponse.json(
-  //     { error: "Failed to fetch leads data", details: error instanceof Error ? error.message : String(error) },
-  //     { status: 500 }
-  //   );
-  //   return addCorsHeaders(response);
-  // }
 }

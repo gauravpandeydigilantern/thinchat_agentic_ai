@@ -3,13 +3,19 @@
 import { Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-interface EnrichViewProps {
-  onUploadContactCsv: () => void
-  onUploadCompanyCsv: () => void
-  onUploadEmailCsv: () => void
-}
+export function EnrichView() {
+  const handleUploadContactCsv = () => {
+    // Logic for uploading contact CSV
+  };
 
-export function EnrichView({ onUploadContactCsv, onUploadCompanyCsv, onUploadEmailCsv }: EnrichViewProps) {
+  const handleUploadCompanyCsv = () => {
+    // Logic for uploading company CSV
+  };
+
+  const handleUploadEmailCsv = () => {
+    // Logic for uploading email CSV
+  };
+
   return (
     <div className="flex-1 bg-white p-6">
       <div className="max-w-5xl mx-auto">
@@ -29,7 +35,7 @@ export function EnrichView({ onUploadContactCsv, onUploadCompanyCsv, onUploadEma
             </p>
             <Button
               className="bg-blue-600 hover:bg-blue-700 w-full flex items-center justify-center"
-              onClick={onUploadContactCsv}
+              onClick={handleUploadContactCsv}
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload CSV
@@ -46,7 +52,7 @@ export function EnrichView({ onUploadContactCsv, onUploadCompanyCsv, onUploadEma
             </p>
             <Button
               className="bg-blue-600 hover:bg-blue-700 w-full flex items-center justify-center"
-              onClick={onUploadCompanyCsv}
+              onClick={handleUploadCompanyCsv}
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload CSV
@@ -63,7 +69,7 @@ export function EnrichView({ onUploadContactCsv, onUploadCompanyCsv, onUploadEma
             </p>
             <Button
               className="bg-blue-600 hover:bg-blue-700 w-full flex items-center justify-center"
-              onClick={onUploadEmailCsv}
+              onClick={handleUploadEmailCsv}
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload CSV

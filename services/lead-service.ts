@@ -3,7 +3,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 export const leadsService = {
  
   async fetchDataThroughBaseUrl(BASEURL:any,endpoint: string) {
-    console.log(BASEURL,'BASEURLBASEURL')
+    // console.log(BASEURL,'BASEURLBASEURL')
     try {
       const response = await fetch(`${BASEURL}${endpoint}`, {
         method: "GET",

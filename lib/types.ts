@@ -1,6 +1,9 @@
 export interface ContactData {
   id: string
-  name: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
   title: string
   company: string
   website: string
@@ -23,6 +26,18 @@ export interface List {
   contactCount: number
   dateResearched: string
   owner: string
+}
+
+export interface StatisticsResponse {
+  data: Array<{
+    id: number;
+    account_id: number;
+    type: string;
+    first_name: string | null;
+    last_name: string | null;
+    company?: string | null;
+  }>;
+  count: number;
 }
 
 export type ViewMode = "grid" | "list"

@@ -1,6 +1,10 @@
 "use client"
 
-import { useState } from "react"
+// #file: sidebar-navigation.tsx
+// A collapsible sidebar navigation component with sections for app navigation
+
+import { useState, useCallback } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Search,
   Target,
@@ -15,30 +19,125 @@ import {
   ChevronDown,
 } from "lucide-react"
 
-interface SidebarNavigationProps {
-  activeTab: string
-  onTabChange: (tab: any) => void
-  onSettingsClick: (view?: "user" | "crm" | "billing") => void
+type MenuSection = {
+  id: string
+  label: string
+  children?: {
+    id: string
+    label: string 
+    path: string
+  }[]
 }
 
-export function SidebarNavigation({ activeTab, onTabChange, onSettingsClick }: SidebarNavigationProps) {
+interface SidebarNavigationProps {
+  initialTab?: string
+  onTabChange?: (tab: string) => void
+  onSettingsClick?: (view?: "user" | "crm" | "billing") => void
+}
+
+const MENU_SECTIONS = [
+  {
+    id: 'find',
+    label: 'FIND',
+    children: [
+      {
+        id: 'enrich',
+        label: 'Enrich',
+        path: '/dashboard/enrichment'
+      }
+    ]
+  },
+  {
+    id: 'connect',
+    label: 'CONNECT',
+    children: [
+      {
+        id: 'contacts',
+        label: 'My Contacts', 
+        path: '/dashboard/contacts'
+      },
+      {
+        id: 'lists',
+        label: 'Contact Lists',
+        path: '/dashboard/lists'  
+      },
+      {
+        id: 'autopilot',
+        label: 'Autopilot',
+        path: '/dashboard/autopilot'
+      }
+    ]
+  },
+  {
+    id: 'companies',
+    label: 'COMPANIES',
+    children: [
+      {
+        id: 'my-companies',
+        label: 'My Companies',
+        path: '/dashboard/companies'
+      },
+      {
+        id: 'company-lists', 
+        label: 'Company Lists',
+        path: '/dashboard/company-lists'
+      }
+    ]
+  },
+  {
+    id: 'tools',
+    label: 'TOOLS',
+    children: [
+      {
+        id: 'writer',
+        label: 'Writer',
+        path: '/dashboard/writer'
+      }
+    ]
+  }
+]
+
+export function SidebarNavigation({ initialTab, onTabChange, onSettingsClick }: SidebarNavigationProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [expandedMenus, setExpandedMenus] = useState({
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     contacts: true,
-    companies: activeTab === "companies" || activeTab === "my-companies" || activeTab === "company-lists",
+    companies: false
   })
 
-  const toggleMenu = (menu: keyof typeof expandedMenus) => {
-    setExpandedMenus((prev) => ({
+  const handleNavigation = useCallback((path: string) => {
+    try {
+      router.push(path)
+    } catch (error) {
+      console.error('Navigation error:', error)
+      // Handle navigation error
+    }
+  }, [router])
+
+  const toggleMenu = useCallback((menuId: string) => {
+    setExpandedMenus(prev => ({
       ...prev,
-      [menu]: !prev[menu],
+      [menuId]: !prev[menuId]
     }))
+  }, [])
+
+  const isActiveRoute = useCallback((path: string) => {
+    return pathname === path
+  }, [pathname])
+
+  // Handle 404 and loading states
+  if (!pathname) {
+    return <div>Loading...</div>
   }
 
   return (
-    <div
-      className={`${isCollapsed ? "w-16" : "w-16 md:w-56"} bg-white border-r border-gray-200 flex flex-col transition-all duration-200`}
+    <aside 
+      className={`${
+        isCollapsed ? "w-16" : "w-16 md:w-56"
+      } bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 transition-all duration-200`}
     >
+      {/* Logo Section */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center">
           <div className={`text-blue-600 font-bold text-xl ${isCollapsed ? "flex" : "hidden md:flex"} items-center`}>
@@ -79,143 +178,57 @@ export function SidebarNavigation({ activeTab, onTabChange, onSettingsClick }: S
         </button>
       </div>
 
-      <div className="mt-4 px-2">
-        <div className={`text-xs font-medium text-gray-500 px-3 mb-2 ${isCollapsed ? "hidden" : "hidden md:block"}`}>
-          FIND
-        </div>
-        {/* <button
-          className={`flex items-center w-full p-2 rounded-md mb-1 ${activeTab === "search" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-          onClick={() => onTabChange("search")}
-        >
-          <Search className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Search</span>
-        </button>
-
-        <button
-          className={`flex items-center w-full p-2 rounded-md mb-1 ${activeTab === "intent" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-          onClick={() => onTabChange("intent")}
-        >
-          <Target className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Buyer Intent</span>
-        </button> */}
-
-        <button
-          className={`flex items-center w-full p-2 rounded-md mb-1 ${activeTab === "enrich" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-          onClick={() => onTabChange("enrich")}
-        >
-          <Sparkles className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Enrich</span>
-        </button>
-      </div>
-
-      <div className="mt-6 px-2">
-        <div className={`text-xs font-medium text-gray-500 px-3 mb-2 ${isCollapsed ? "hidden" : "hidden md:block"}`}>
-          CONNECT
-        </div>
-
-        {/* Contacts menu with submenu */}
-        <div className="relative">
-          <button
-            className={`flex items-center justify-between w-full p-2 rounded-md mb-1 ${activeTab === "contacts" || activeTab === "lists" || activeTab === "autopilot" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-            onClick={() => toggleMenu("contacts")}
-          >
-            <div className="flex items-center">
-              <Users className="h-5 w-5 min-w-5" />
-              <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Contacts</span>
+      {/* Navigation Sections */}
+      <nav className="flex-1 overflow-y-auto">
+        {MENU_SECTIONS.map((section) => (
+          <div key={section.id} className="mt-6 px-2">
+            <div 
+              className={`text-xs font-medium text-gray-500 px-3 mb-2 ${
+                isCollapsed ? "hidden" : "hidden md:block"
+              }`}
+            >
+              {section.label}
             </div>
-            {!isCollapsed && (
-              <ChevronDown className={`h-4 w-4 transition-transform ${expandedMenus.contacts ? "rotate-180" : ""}`} />
-            )}
-          </button>
 
-          {!isCollapsed && expandedMenus.contacts && (
-            <div className="ml-8 mt-1 space-y-1">
+            {section.children?.map((item) => (
               <button
-                className={`w-full text-left px-3 py-1 rounded-md text-sm ${activeTab === "contacts" ? "text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-100"}`}
-                onClick={() => onTabChange("contacts")}
+                key={item.id}
+                className={`flex items-center w-full p-2 rounded-md mb-1 ${
+                  isActiveRoute(item.path) 
+                    ? "bg-blue-50 text-blue-600" 
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => handleNavigation(item.path)}
               >
-                My Contacts
+                <span className="h-5 w-5 min-w-5">
+                  {/* Add icon based on item.id */}
+                </span>
+                <span className={`ml-3 text-sm ${
+                  isCollapsed ? "hidden" : "hidden md:block"
+                }`}>
+                  {item.label}
+                </span>
               </button>
-              <button
-                className={`w-full text-left px-3 py-1 rounded-md text-sm ${activeTab === "lists" ? "text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-100"}`}
-                onClick={() => onTabChange("lists")}
-              >
-                Contact Lists
-              </button>
-              <button
-                className={`w-full text-left px-3 py-1 rounded-md text-sm ${activeTab === "autopilot" ? "text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-100"}`}
-                onClick={() => onTabChange("autopilot")}
-              >
-                Autopilot
-              </button>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ))}
+      </nav>
 
-        {/* Companies menu with submenu */}
-        <div className="relative">
-          <button
-            className={`flex items-center justify-between w-full p-2 rounded-md mb-1 ${activeTab === "companies" || activeTab === "my-companies" || activeTab === "company-lists" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-            onClick={() => toggleMenu("companies")}
-          >
-            <div className="flex items-center">
-              <Building2 className="h-5 w-5 min-w-5" />
-              <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Companies</span>
-            </div>
-            {!isCollapsed && (
-              <ChevronDown className={`h-4 w-4 transition-transform ${expandedMenus.companies ? "rotate-180" : ""}`} />
-            )}
-          </button>
-
-          {!isCollapsed && expandedMenus.companies && (
-            <div className="ml-8 mt-1 space-y-1">
-              <button
-                className={`w-full text-left px-3 py-1 rounded-md text-sm ${activeTab === "my-companies" ? "text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-100"}`}
-                onClick={() => onTabChange("my-companies")}
-              >
-                My Companies
-              </button>
-              <button
-                className={`w-full text-left px-3 py-1 rounded-md text-sm ${activeTab === "company-lists" ? "text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-100"}`}
-                onClick={() => onTabChange("company-lists")}
-              >
-                Company Lists
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6 px-2">
-        <div className={`text-xs font-medium text-gray-500 px-3 mb-2 ${isCollapsed ? "hidden" : "hidden md:block"}`}>
-          TOOLS
-        </div>
-        {/* <button
-          className={`flex items-center w-full p-2 rounded-md mb-1 ${activeTab === "academy" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-          onClick={() => onTabChange("academy")}
-        >
-          <Video className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Academy</span>
-        </button> */}
-
-        <button
-          className={`flex items-center w-full p-2 rounded-md mb-1 ${activeTab === "writer" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
-          onClick={() => onTabChange("writer")}
-        >
-          <FileText className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Writer</span>
-        </button>
-      </div>
-
+      {/* Footer Section */}
       <div className="mt-auto px-2 mb-4">
         <button
           className="flex items-center w-full p-2 rounded-md text-gray-700 hover:bg-gray-100"
-          onClick={() => onSettingsClick()}
+          onClick={() => handleNavigation("/settings")}
         >
           <Settings className="h-5 w-5 min-w-5" />
-          <span className={`ml-3 text-sm ${isCollapsed ? "hidden" : "hidden md:block"}`}>Settings</span>
+          <span className={`ml-3 text-sm ${
+            isCollapsed ? "hidden" : "hidden md:block"
+          }`}>
+            Settings
+          </span>
         </button>
 
+        {/* User Profile */}
         <div className="flex items-center p-2 mt-4">
           <div className="h-10 w-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-medium">
             KD
@@ -226,7 +239,7 @@ export function SidebarNavigation({ activeTab, onTabChange, onSettingsClick }: S
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   )
 }
 

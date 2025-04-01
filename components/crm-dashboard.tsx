@@ -21,6 +21,7 @@ import { contactsData } from "@/lib/sample-data"
 import type { ContactData, ViewMode, TableView, List } from "@/lib/types"
 import { UploadCsvModal } from "@/components/upload-csv-modal"
 import { UploadSuccessModal } from "@/components/upload-success-modal"
+import WriterPage from "@/app/dashboard/writer/page"
 import { leadsService } from "@/services/lead-service"
 
 export function CrmDashboard() {
@@ -36,7 +37,7 @@ export function CrmDashboard() {
   const [isUploadSuccessModalOpen, setIsUploadSuccessModalOpen] = useState(false)
   const [uploadType, setUploadType] = useState<"contact" | "company" | "email">("contact")
   const [activeTab, setActiveTab] = useState<
-    "contacts" | "lists" | "autopilot" | "companies" | "my-companies" | "company-lists" | "enrich" | "view-lists"
+    "contacts" | "lists" | "autopilot" | "companies" | "my-companies" | "company-lists" | "enrich" | "view-lists" | "writer"
   >("contacts")
   const [tableView, setTableView] = useState<TableView>("contact")
   const [viewMode, setViewMode] = useState<ViewMode>("list")
@@ -81,7 +82,7 @@ export function CrmDashboard() {
       type: string;
       first_name: string | null;
       last_name: string | null;
-      // ... other fields
+      company?: string | null;
     }>;
     count: number;
   }
@@ -90,6 +91,21 @@ export function CrmDashboard() {
     data: [],
     count: 0,
   })
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [statistics] = await Promise.all([
+        leadsService.fetchDataThroughBaseUrl(
+          process.env.NEXT_PUBLIC_API_BASE_URL || "",
+          "/account?type=mycontact"
+        ),
+      ]);
+      useContactData(statistics);
+    };
+
+    fetchData();
+  }, []);
+
   useEffect(() => {
     // If a list was successfully uploaded, add it to the lists
     if (isUploadSuccessModalOpen && uploadedFileName) {
@@ -104,6 +120,19 @@ export function CrmDashboard() {
       setLists((prev) => [...prev, newList])
     }
   }, [isUploadSuccessModalOpen, uploadedFileName])
+
+  const filteredContacts = statistics.data.filter((contact) => {
+    if (searchQuery) {
+      const name = `${contact.first_name} ${contact.last_name}`.toLowerCase();
+      const company = contact.company?.toLowerCase() || '';
+      const query = searchQuery.toLowerCase();
+      
+      if (!name.includes(query) && !company.includes(query)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const handleManageList = () => {
     setIsManageListOpen(true)
@@ -127,7 +156,7 @@ export function CrmDashboard() {
   }
 
   const handleTabChange = (
-    tab: "contacts" | "lists" | "autopilot" | "companies" | "my-companies" | "company-lists" | "enrich" | "view-lists",
+    tab: "contacts" | "lists" | "autopilot" | "companies" | "my-companies" | "company-lists" | "enrich" | "view-lists" | "writer",
   ) => {
     setActiveTab(tab)
     setShowSettings(false)
@@ -243,94 +272,6 @@ export function CrmDashboard() {
     handleTabChange("view-lists")
   }
 
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const [statistics] = await Promise.all([
-        leadsService.fetchDataThroughBaseUrl(
-          API_BASE_URL,
-          "/account?type=mycontact"
-        ),
-      ]);
-     
-      useContactData(statistics);
-
-    };
-  
-    fetchData();
-  }, []);
-  console.log("Lead statistics1:", statistics);
-
-  const filteredContacts = statistics.data.filter((contact) => {
-    // Search query filtering
-    if (searchQuery) {
-      const name = `${contact.first_name} ${contact.last_name}`.toLowerCase();
-      const company = contact.company?.toLowerCase() || '';
-      const query = searchQuery.toLowerCase();
-      
-      if (!name.includes(query) && !company.includes(query)) {
-        return false;
-      }
-    }
-
-    // Filter by seniority (assuming seniority exists in your data)
-    // if (filters.seniority.length > 0 && contact.first_name && !filters.first_name.includes(contact.first_name)) {
-    //   return false;
-    // }
-
-    // // Filter by department (assuming department exists in your data)
-    // if (filters.department.length > 0 && contact.department && !filters.department.includes(contact.department)) {
-    //   return false;
-    // }
-
-    // // Filter by location
-    // if (filters.location.length > 0 && contact.location && !filters.location.includes(contact.location)) {
-    //   return false;
-    // }
-
-    // // Filter by employee size (assuming employeeSize exists in your data)
-    // if (filters.employeeSize.length > 0 && contact.employeeSize && !filters.employeeSize.includes(contact.employeeSize)) {
-    //   return false;
-    // }
-
-    return true;
-});
-
-  // Filter contacts based on search query and filters
-  // const filteredContacts = contactsData.filter((contact) => {
-  //   const filteredContacts = contactsData.filter((contact) => {
-  //   // Search query filtering
-  //   if (
-  //     searchQuery &&
-  //     !contact.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-  //     !contact.company.toLowerCase().includes(searchQuery.toLowerCase())
-  //   ) {
-  //     return false
-  //   }
-
-  //   // Filter by seniority
-  //   if (filters.seniority.length > 0 && !filters.seniority.includes(contact.seniority)) {
-  //     return false
-  //   }
-
-  //   // Filter by department
-  //   if (filters.department.length > 0 && !filters.department.includes(contact.department)) {
-  //     return false
-  //   }
-
-  //   // Filter by location
-  //   if (filters.location.length > 0 && !filters.location.includes(contact.location)) {
-  //     return false
-  //   }
-
-  //   // Filter by employee size
-  //   if (filters.employeeSize.length > 0 && !filters.employeeSize.includes(contact.employeeSize)) {
-  //     return false
-  //   }
-
-  //   return true
-  // })
-
   return (
     <div className="flex h-screen">
       <SidebarNavigation
@@ -346,355 +287,361 @@ export function CrmDashboard() {
           <SettingsPage view={settingsView} onViewChange={setSettingsView} onClose={() => setShowSettings(false)} />
         ) : (
           <>
-            <ContactsHeader
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              onManageList={handleManageList}
-              onCreateList={handleCreateList}
-              creditsAvailable={74}
-            />
-
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {activeTab === "enrich" ? (
-                <EnrichView
-                  onUploadContactCsv={() => handleOpenUploadCsvModal("contact")}
-                  onUploadCompanyCsv={() => handleOpenUploadCsvModal("company")}
-                  onUploadEmailCsv={() => handleOpenUploadCsvModal("email")}
-                />
-              ) : activeTab === "view-lists" ? (
-                <ViewMyLists lists={lists} />
-              ) : activeTab === "contacts" ? (
-                <ContactsTable
-                  data={filteredContacts}
+            {activeTab === "writer" ? (
+              <WriterPage />
+            ) : (
+              <>
+                <ContactsHeader
                   activeTab={activeTab}
-                  tableView={tableView}
-                  viewMode={viewMode}
-                  searchQuery={searchQuery}
-                  onSearch={handleSearch}
-                  currentPage={currentPage}
-                  onPageChange={setCurrentPage}
-                  selectedContacts={selectedContacts}
-                  onSelectContact={handleSelectContact}
-                  onContactClick={handleContactClick}
-                  onTableViewChange={handleTableViewChange}
-                  onViewModeChange={handleViewModeChange}
-                  onToggleFilterPanel={handleToggleFilterPanel}
-                  onToggleEnrichmentPanel={handleToggleEnrichmentPanel}
-                  onToggleCrmPanel={handleToggleCrmPanel}
-                  onAddToList={handleAddToList}
+                  onTabChange={handleTabChange}
+                  onManageList={handleManageList}
+                  onCreateList={handleCreateList}
+                  creditsAvailable={74}
                 />
-              ) : activeTab === "lists" ? (
-                <div className="flex-1 p-4 bg-gray-50">
-                  <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                    <div className="p-4 flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <button className="p-2 border rounded-md">
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M15 18L9 12L15 6"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        <button className="p-2 border rounded-md">
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M9 18L15 12L9 6"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        <div className="relative">
-                          <svg
-                            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                            <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                          <input
-                            type="text"
-                            placeholder="Search"
-                            className="pl-9 h-9 w-60 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={searchQuery}
-                            onChange={(e) => handleSearch(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1 border rounded-md">
-                          <button className="p-2 rounded-l-md bg-blue-600 text-white">
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-                              <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-                              <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-                              <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
-                            </svg>
-                          </button>
-                          <button className="p-2 rounded-r-md">
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path d="M8 6H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M8 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M8 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M3 6H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M3 12H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M3 18H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          </button>
-                        </div>
-                        <button className="p-2 border rounded-md">
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <circle cx="12" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
-                            <circle cx="19" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
-                            <circle cx="5" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
 
-                    <div className="border-t border-gray-200">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-gray-50 text-left">
-                            <th className="px-4 py-3 text-sm font-medium text-gray-600 w-1/4">
-                              <div className="flex items-center">
-                                <span>Lists</span>
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {activeTab === "enrich" ? (
+                    <EnrichView
+                      onUploadContactCsv={() => handleOpenUploadCsvModal("contact")}
+                      onUploadCompanyCsv={() => handleOpenUploadCsvModal("company")}
+                      onUploadEmailCsv={() => handleOpenUploadCsvModal("email")}
+                    />
+                  ) : activeTab === "view-lists" ? (
+                    <ViewMyLists lists={lists} />
+                  ) : activeTab === "contacts" ? (
+                    <ContactsTable
+                      data={filteredContacts}
+                      activeTab={activeTab}
+                      tableView={tableView}
+                      viewMode={viewMode}
+                      searchQuery={searchQuery}
+                      onSearch={handleSearch}
+                      currentPage={currentPage}
+                      onPageChange={setCurrentPage}
+                      selectedContacts={selectedContacts}
+                      onSelectContact={handleSelectContact}
+                      onContactClick={handleContactClick}
+                      onTableViewChange={handleTableViewChange}
+                      onViewModeChange={handleViewModeChange}
+                      onToggleFilterPanel={handleToggleFilterPanel}
+                      onToggleEnrichmentPanel={handleToggleEnrichmentPanel}
+                      onToggleCrmPanel={handleToggleCrmPanel}
+                      onAddToList={handleAddToList}
+                    />
+                  ) : activeTab === "lists" ? (
+                    <div className="flex-1 p-4 bg-gray-50">
+                      <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+                        <div className="p-4 flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <button className="p-2 border rounded-md">
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M15 18L9 12L15 6"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button className="p-2 border rounded-md">
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M9 18L15 12L9 6"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <div className="relative">
+                              <svg
+                                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+                                <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                              <input
+                                type="text"
+                                placeholder="Search"
+                                className="pl-9 h-9 w-60 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1 border rounded-md">
+                              <button className="p-2 rounded-l-md bg-blue-600 text-white">
                                 <svg
-                                  className="ml-1 h-4 w-4"
+                                  width="16"
+                                  height="16"
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   xmlns="http://www.w3.org/2000/svg"
                                 >
-                                  <path
-                                    d="M6 9L12 15L18 9"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
+                                  <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                                  <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                                  <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                                  <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
                                 </svg>
-                              </div>
-                            </th>
-                            <th className="px-4 py-3 text-sm font-medium text-gray-600">Record Count</th>
-                            <th className="px-4 py-3 text-sm font-medium text-gray-600">Date Researched</th>
-                            <th className="px-4 py-3 text-sm font-medium text-gray-600">
-                              <div className="flex items-center">
-                                <span>Owner</span>
+                              </button>
+                              <button className="p-2 rounded-r-md">
                                 <svg
-                                  className="ml-1 h-4 w-4"
+                                  width="16"
+                                  height="16"
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   xmlns="http://www.w3.org/2000/svg"
                                 >
-                                  <path
-                                    d="M6 9L12 15L18 9"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
+                                  <path d="M8 6H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                  <path d="M8 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                  <path d="M8 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                  <path d="M3 6H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                  <path d="M3 12H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                  <path d="M3 18H3.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                 </svg>
-                              </div>
-                            </th>
-                            <th className="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lists.map((list) => (
-                            <tr key={list.id} className="border-t border-gray-200 hover:bg-gray-50">
-                              <td className="px-4 py-4">
-                                <div className="flex items-center">
-                                  <span className="text-blue-600 font-medium">{list.name}</span>
-                                  {list.isDefault && (
-                                    <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 rounded-md">Default</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-4">{list.contactCount} contacts</td>
-                              <td className="px-4 py-4">{list.dateResearched}</td>
-                              <td className="px-4 py-4">
-                                <div className="flex items-center">
-                                  <div className="h-8 w-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-medium text-sm mr-2">
-                                    KD
-                                  </div>
-                                  <span>{list.owner}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-4">
-                                <div className="flex items-center space-x-2">
-                                  <button className="p-1 rounded-md hover:bg-gray-100">
+                              </button>
+                            </div>
+                            <button className="p-2 border rounded-md">
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <circle cx="12" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                <circle cx="19" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                <circle cx="5" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-200">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gray-50 text-left">
+                                <th className="px-4 py-3 text-sm font-medium text-gray-600 w-1/4">
+                                  <div className="flex items-center">
+                                    <span>Lists</span>
                                     <svg
-                                      width="20"
-                                      height="20"
+                                      className="ml-1 h-4 w-4"
                                       viewBox="0 0 24 24"
                                       fill="none"
                                       xmlns="http://www.w3.org/2000/svg"
                                     >
-                                      <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
                                       <path
-                                        d="M21 21L16.65 16.65"
+                                        d="M6 9L12 15L18 9"
                                         stroke="currentColor"
                                         strokeWidth="2"
                                         strokeLinecap="round"
+                                        strokeLinejoin="round"
                                       />
                                     </svg>
-                                  </button>
-                                  <button className="p-1 rounded-md hover:bg-gray-100">
+                                  </div>
+                                </th>
+                                <th className="px-4 py-3 text-sm font-medium text-gray-600">Record Count</th>
+                                <th className="px-4 py-3 text-sm font-medium text-gray-600">Date Researched</th>
+                                <th className="px-4 py-3 text-sm font-medium text-gray-600">
+                                  <div className="flex items-center">
+                                    <span>Owner</span>
                                     <svg
-                                      width="20"
-                                      height="20"
+                                      className="ml-1 h-4 w-4"
                                       viewBox="0 0 24 24"
                                       fill="none"
                                       xmlns="http://www.w3.org/2000/svg"
                                     >
-                                      <circle cx="12" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
-                                      <circle cx="19" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
-                                      <circle cx="5" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                      <path
+                                        d="M6 9L12 15L18 9"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
                                     </svg>
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="border-t border-gray-200 p-4 flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <button className="flex items-center space-x-1 px-3 py-1 border rounded-md text-sm">
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M19 12H5"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M12 19L5 12L12 5"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          <span>Previous</span>
-                        </button>
-                        <div className="flex items-center">
-                          <button className="w-8 h-8 flex items-center justify-center rounded-md bg-blue-600 text-white">
-                            1
-                          </button>
+                                  </div>
+                                </th>
+                                <th className="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lists.map((list) => (
+                                <tr key={list.id} className="border-t border-gray-200 hover:bg-gray-50">
+                                  <td className="px-4 py-4">
+                                    <div className="flex items-center">
+                                      <span className="text-blue-600 font-medium">{list.name}</span>
+                                      {list.isDefault && (
+                                        <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 rounded-md">Default</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4">{list.contactCount} contacts</td>
+                                  <td className="px-4 py-4">{list.dateResearched}</td>
+                                  <td className="px-4 py-4">
+                                    <div className="flex items-center">
+                                      <div className="h-8 w-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-medium text-sm mr-2">
+                                        KD
+                                      </div>
+                                      <span>{list.owner}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <div className="flex items-center space-x-2">
+                                      <button className="p-1 rounded-md hover:bg-gray-100">
+                                        <svg
+                                          width="20"
+                                          height="20"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                        >
+                                          <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+                                          <path
+                                            d="M21 21L16.65 16.65"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                          />
+                                        </svg>
+                                      </button>
+                                      <button className="p-1 rounded-md hover:bg-gray-100">
+                                        <svg
+                                          width="20"
+                                          height="20"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                        >
+                                          <circle cx="12" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                          <circle cx="19" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                          <circle cx="5" cy="12" r="1" stroke="currentColor" strokeWidth="2" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <button className="flex items-center space-x-1 px-3 py-1 border rounded-md text-sm">
-                          <span>Next</span>
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M5 12H19"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+
+                        <div className="border-t border-gray-200 p-4 flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <button className="flex items-center space-x-1 px-3 py-1 border rounded-md text-sm">
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M19 12H5"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M12 19L5 12L12 5"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <span>Previous</span>
+                            </button>
+                            <div className="flex items-center">
+                              <button className="w-8 h-8 flex items-center justify-center rounded-md bg-blue-600 text-white">
+                                1
+                              </button>
+                            </div>
+                            <button className="flex items-center space-x-1 px-3 py-1 border rounded-md text-sm">
+                              <span>Next</span>
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M5 12H19"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M12 5L19 12L12 19"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">Jump to page:</span>
+                            <input
+                              type="text"
+                              className="w-16 h-8 rounded-md border border-gray-300 text-center"
+                              value={currentPage}
+                              onChange={(e) => setCurrentPage(Number(e.target.value))}
                             />
-                            <path
-                              d="M12 5L19 12L12 19"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : activeTab === "my-companies" || activeTab === "company-lists" || activeTab === "companies" ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50">
+                      <div className="bg-white p-8 rounded-lg shadow-sm max-w-lg w-full text-center">
+                        <div className="mb-6">
+                          <img src="/placeholder.svg?height=120&width=120" alt="No companies" className="mx-auto" />
+                        </div>
+                        <h2 className="text-xl font-semibold mb-2">No companies added yet</h2>
+                        <p className="text-gray-600 mb-6">Find companies to add</p>
+                        <button
+                          className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+                          onClick={() => handleOpenUploadCsvModal("company")}
+                        >
+                          Upload Companies
                         </button>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">Jump to page:</span>
-                        <input
-                          type="text"
-                          className="w-16 h-8 rounded-md border border-gray-300 text-center"
-                          value={currentPage}
-                          onChange={(e) => setCurrentPage(Number(e.target.value))}
-                        />
+                    </div>
+                  ) : (
+                    <div className="flex-1 p-4 bg-gray-50">
+                      <div className="bg-white rounded-md border border-gray-200 p-8 text-center">
+                        <h2 className="text-xl font-semibold mb-2">Autopilot</h2>
+                        <p className="text-gray-600">This feature is coming soon.</p>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              ) : activeTab === "my-companies" || activeTab === "company-lists" || activeTab === "companies" ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50">
-                  <div className="bg-white p-8 rounded-lg shadow-sm max-w-lg w-full text-center">
-                    <div className="mb-6">
-                      <img src="/placeholder.svg?height=120&width=120" alt="No companies" className="mx-auto" />
-                    </div>
-                    <h2 className="text-xl font-semibold mb-2">No companies added yet</h2>
-                    <p className="text-gray-600 mb-6">Find companies to add</p>
-                    <button
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
-                      onClick={() => handleOpenUploadCsvModal("company")}
-                    >
-                      Upload Companies
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 p-4 bg-gray-50">
-                  <div className="bg-white rounded-md border border-gray-200 p-8 text-center">
-                    <h2 className="text-xl font-semibold mb-2">Autopilot</h2>
-                    <p className="text-gray-600">This feature is coming soon.</p>
-                  </div>
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </>
         )}
       </div>

@@ -1,7 +1,5 @@
 import type { ContactData } from "@/lib/types"
-import { leadsService } from "@/services/lead-service";
 
-// export const contactsData: ContactData[] = []
 export const contactsData: ContactData[] = [
   {
     id: "1",
@@ -49,26 +47,4 @@ export const contactsData: ContactData[] = [
     dateResearched: "2 days ago",
   },
 ]
-
-export const contactData = [
-  {
-    id: "1",
-    name: "John Doe",
-    title: "Software Engineer",
-    company: "TechCorp",
-    website: "techcorp.com",
-    companyEmail: "info@techcorp.com",
-    location: "San Francisco, CA",
-    industry: "Technology",
-    seniority: "Senior",
-    department: "Engineering",
-    companyLocation: "San Francisco, CA",
-    employeeSize: "500-1000",
-    socials: {
-      linkedin: "https://linkedin.com/in/johndoe",
-      twitter: "https://twitter.com/johndoe",
-    },
-  },
-  // Add more sample data as needed
-];
 

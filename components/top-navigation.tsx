@@ -1,14 +1,20 @@
 "use client"
 
+// #file: top-navigation.tsx
+// A navigation component that displays the top header bar with various action buttons
+
 import { MessageSquare, Bell, HelpCircle, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface TopNavigationProps {
-  creditsAvailable: number
-  onIntegrationsClick: () => void
+  creditsAvailable?: number
+  onIntegrationsClick?: () => void
 }
 
-export function TopNavigation({ creditsAvailable, onIntegrationsClick }: TopNavigationProps) {
+export default function TopNavigation({ 
+  creditsAvailable = 0, 
+  onIntegrationsClick = () => {} 
+}: TopNavigationProps) {
   return (
     <div className="w-full bg-white border-b border-gray-200 px-4 py-2">
       <div className="flex items-center justify-between">

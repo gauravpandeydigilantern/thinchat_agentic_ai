@@ -118,11 +118,7 @@ export function ContactsTable({
     switch (column.id) {
       case "name":
         return item.name
-        // return (
-        //   <button className="text-blue-600 font-medium hover:underline" onClick={() => onContactClick(item)}>
-        //     {item.name}
-        //   </button>
-        // )
+      
       case "title":
         return item.title
       case "company":
