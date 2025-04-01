@@ -21,8 +21,10 @@ import { contactsData } from "@/lib/sample-data"
 import type { ContactData, ViewMode, TableView, List } from "@/lib/types"
 import { UploadCsvModal } from "@/components/upload-csv-modal"
 import { UploadSuccessModal } from "@/components/upload-success-modal"
+import { leadsService } from "@/services/lead-service"
 
 export function CrmDashboard() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL_API || "";
   const [isManageListOpen, setIsManageListOpen] = useState(false)
   const [isCreateListOpen, setIsCreateListOpen] = useState(false)
   const [isAddToListOpen, setIsAddToListOpen] = useState(false)
@@ -72,6 +74,22 @@ export function CrmDashboard() {
     employeeSize: [],
   })
 
+  interface StatisticsResponse {
+    data: Array<{
+      id: number;
+      account_id: number;
+      type: string;
+      first_name: string | null;
+      last_name: string | null;
+      // ... other fields
+    }>;
+    count: number;
+  }
+
+  const [statistics, useContactData] = useState<StatisticsResponse>({
+    data: [],
+    count: 0,
+  })
   useEffect(() => {
     // If a list was successfully uploaded, add it to the lists
     if (isUploadSuccessModalOpen && uploadedFileName) {
@@ -225,39 +243,93 @@ export function CrmDashboard() {
     handleTabChange("view-lists")
   }
 
-  // Filter contacts based on search query and filters
-  const filteredContacts = contactsData.filter((contact) => {
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [statistics] = await Promise.all([
+        leadsService.fetchDataThroughBaseUrl(
+          API_BASE_URL,
+          "/account?type=mycontact"
+        ),
+      ]);
+     
+      useContactData(statistics);
+
+    };
+  
+    fetchData();
+  }, []);
+  console.log("Lead statistics1:", statistics);
+
+  const filteredContacts = statistics.data.filter((contact) => {
     // Search query filtering
-    if (
-      searchQuery &&
-      !contact.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !contact.company.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false
+    if (searchQuery) {
+      const name = `${contact.first_name} ${contact.last_name}`.toLowerCase();
+      const company = contact.company?.toLowerCase() || '';
+      const query = searchQuery.toLowerCase();
+      
+      if (!name.includes(query) && !company.includes(query)) {
+        return false;
+      }
     }
 
-    // Filter by seniority
-    if (filters.seniority.length > 0 && !filters.seniority.includes(contact.seniority)) {
-      return false
-    }
+    // Filter by seniority (assuming seniority exists in your data)
+    // if (filters.seniority.length > 0 && contact.first_name && !filters.first_name.includes(contact.first_name)) {
+    //   return false;
+    // }
 
-    // Filter by department
-    if (filters.department.length > 0 && !filters.department.includes(contact.department)) {
-      return false
-    }
+    // // Filter by department (assuming department exists in your data)
+    // if (filters.department.length > 0 && contact.department && !filters.department.includes(contact.department)) {
+    //   return false;
+    // }
 
-    // Filter by location
-    if (filters.location.length > 0 && !filters.location.includes(contact.location)) {
-      return false
-    }
+    // // Filter by location
+    // if (filters.location.length > 0 && contact.location && !filters.location.includes(contact.location)) {
+    //   return false;
+    // }
 
-    // Filter by employee size
-    if (filters.employeeSize.length > 0 && !filters.employeeSize.includes(contact.employeeSize)) {
-      return false
-    }
+    // // Filter by employee size (assuming employeeSize exists in your data)
+    // if (filters.employeeSize.length > 0 && contact.employeeSize && !filters.employeeSize.includes(contact.employeeSize)) {
+    //   return false;
+    // }
 
-    return true
-  })
+    return true;
+});
+
+  // Filter contacts based on search query and filters
+  // const filteredContacts = contactsData.filter((contact) => {
+  //   const filteredContacts = contactsData.filter((contact) => {
+  //   // Search query filtering
+  //   if (
+  //     searchQuery &&
+  //     !contact.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+  //     !contact.company.toLowerCase().includes(searchQuery.toLowerCase())
+  //   ) {
+  //     return false
+  //   }
+
+  //   // Filter by seniority
+  //   if (filters.seniority.length > 0 && !filters.seniority.includes(contact.seniority)) {
+  //     return false
+  //   }
+
+  //   // Filter by department
+  //   if (filters.department.length > 0 && !filters.department.includes(contact.department)) {
+  //     return false
+  //   }
+
+  //   // Filter by location
+  //   if (filters.location.length > 0 && !filters.location.includes(contact.location)) {
+  //     return false
+  //   }
+
+  //   // Filter by employee size
+  //   if (filters.employeeSize.length > 0 && !filters.employeeSize.includes(contact.employeeSize)) {
+  //     return false
+  //   }
+
+  //   return true
+  // })
 
   return (
     <div className="flex h-screen">

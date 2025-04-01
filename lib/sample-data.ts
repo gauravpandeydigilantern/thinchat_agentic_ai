@@ -1,5 +1,7 @@
 import type { ContactData } from "@/lib/types"
+import { leadsService } from "@/services/lead-service";
 
+// export const contactsData: ContactData[] = []
 export const contactsData: ContactData[] = [
   {
     id: "1",

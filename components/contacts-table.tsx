@@ -76,7 +76,7 @@ export function ContactsTable({
   const getColumns = () => {
     if (tableView === "contact") {
       return [
-        { id: "contact", label: "Contact", sortable: true },
+        { id: "name", label: "Contact1", sortable: true },
         { id: "title", label: "Title", sortable: true },
         { id: "company", label: "Company", sortable: true },
         { id: "website", label: "Website", sortable: true },
@@ -114,13 +114,15 @@ export function ContactsTable({
 
   // Render table cell content based on column id and data
   const renderCellContent = (column: { id: string; label: string; sortable: boolean }, item: ContactData) => {
+    console.log(item.name, "item")
     switch (column.id) {
-      case "contact":
-        return (
-          <button className="text-blue-600 font-medium hover:underline" onClick={() => onContactClick(item)}>
-            {item.name}
-          </button>
-        )
+      case "name":
+        return item.name
+        // return (
+        //   <button className="text-blue-600 font-medium hover:underline" onClick={() => onContactClick(item)}>
+        //     {item.name}
+        //   </button>
+        // )
       case "title":
         return item.title
       case "company":
@@ -381,7 +383,7 @@ export function ContactsTable({
   const handleViewChange = (view: TableView) => {
     onTableViewChange(view)
   }
-
+  console.log(data, "columns")
   return (
     <div className="flex flex-col flex-1 bg-white">
       <div className="p-4 flex items-center justify-between border-b border-gray-200">
@@ -524,6 +526,7 @@ export function ContactsTable({
                       onCheckedChange={(checked) => handleCheckboxChange(item.id, checked as boolean)}
                     />
                   </td>
+                  
                   {columns.map((column) => (
                     <td key={`${item.id}-${column.id}`} className="px-4 py-4">
                       {renderCellContent(column, item)}

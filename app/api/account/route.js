@@ -4,7 +4,9 @@ import { db } from '@/lib/db/drizzle'; // Make sure this path is correct
 import { accounts, contacts } from '@/lib/db/schema'; // Make sure this path is correct
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-
+import axios, { AxiosError } from 'axios';
+import { count } from 'console';
+import { sql } from 'drizzle-orm';
 // dotenv.config();
 
 
@@ -52,19 +54,19 @@ export async function POST(req) {
             console.log(item.company_url,'item.company_url')
           await db.insert(accounts)
             .values({
-              name: item.name || 'N/A',
-              industry: item.industry || 'N/A',
-              employees: item.employees || 'N/A',
-              about: item.about || 'N/A',
+              name: item.name || null,
+              industry: item.industry || null,
+              employees: item.employees || null,
+              about: item.about || null,
               company_url: item.company_url
             })
             .onConflictDoUpdate({
               target: accounts.company_url,
               set: {
-                name: item.name || 'N/A',
-                industry: item.industry || 'N/A',
-                employees: item.employees || 'N/A',
-                about: item.about || 'N/A'
+                name: item.name || null,
+                industry: item.industry || null,
+                employees: item.employees || null,
+                about: item.about || null
               }
             });
           insertedAccounts++;
@@ -90,35 +92,35 @@ export async function POST(req) {
             .values({
               account_id: accountId,
               type: item.type,
-              first_name: item.firstName || 'N/A',
-              last_name: item.lastName || 'N/A',
-              title: item.title || 'N/A',
-              company: item.company || 'N/A',
-              location: item.location || 'N/A',
-              latitude: item.latitude || 'N/A',
-              longitude: item.longitude || 'N/A',
-              email: item.email || 'N/A',
-              connections: item.connections || 'N/A',
-              about: item.about || 'N/A',
+              first_name: item.firstName || null,
+              last_name: item.lastName || null,
+              title: item.title || null,
+              company: item.company || null,
+              location: item.location || null,
+              latitude: item.latitude || null,
+              longitude: item.longitude || null,
+              email: item.email || null,
+              connections: item.connections || null,
+              about: item.about || null,
               profile_url: item.profile_url,
-              insights: item.insights || 'N/A'
+              insights: item.insights || null
             })
             .onConflictDoUpdate({
               target: contacts.profile_url,
               set: {
                 account_id: accountId,
                 type: item.type,
-                first_name: item.name || 'N/A',
-                last_name: item.lastName || 'N/A',
-                title: item.title || 'N/A',
-                company: item.company || 'N/A',
-                location: item.location || 'N/A',
-                latitude: item.latitude || 'N/A',
-                longitude: item.longitude || 'N/A',
-                email: item.email || 'N/A',
-                connections: item.connections || 'N/A',
-                about: item.about || 'N/A',
-                insights: item.insights || 'N/A'
+                first_name: item.name || null,
+                last_name: item.lastName || null,
+                title: item.title || null,
+                company: item.company || null,
+                location: item.location || null,
+                latitude: item.latitude || null,
+                longitude: item.longitude || null,
+                email: item.email || null,
+                connections: item.connections || null,
+                about: item.about || null,
+                insights: item.insights || null
               }
             });
           insertedContacts++;
@@ -158,24 +160,95 @@ export async function POST(req) {
 
 
 
-export async function GET(req) {
-  try {
-    const existingAccount = await db.select()
-      .from(accounts)
-      .limit(1);
 
-    return NextResponse.json({ leads: existingAccount });
+async function fetchmycontact(page = 1, pageSize = 10) {
+  try {
+    const offset = (page - 1) * pageSize;
+
+    // Fetch paginated data
+    // const data = await db('accounts')
+    //   .select('*')  // Ensure you're selecting fields explicitly
+    //   .offset(offset)
+    //   .limit(pageSize);
+
+    const data = await db.select( {
+      id: contacts.id, 
+      name: sql`CONCAT(first_name, ' ', last_name)`, 
+      title: contacts.title, 
+      company: contacts.company, 
+      location: contacts.location, 
+      companyEmail: contacts.email, 
+      connections: contacts.connections, 
+      about: contacts.about, 
+      profile_url: contacts.profile_url, 
+      insights: contacts.insights}).from(contacts).offset(offset).limit(pageSize);
+
+    // Get total count
+    // const totalCountResult = await db('accounts')
+    //   .count('* as count')
+    //   .first();
+
+    // const totalCount = totalCountResult ? parseInt(totalCountResult.count, 10) : 0;
+      const totalCount = 0;
+    return {
+      data: data,
+      count: totalCount
+    };
   } catch (error) {
-    console.error("Database error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch leads data", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
-    return addCorsHeaders(response);
+    console.error('Error fetching contacts:', error);
+    throw new Error('Failed to fetch contacts');
   }
 }
 
-export async function OPTIONS() {
-  const response = NextResponse.json({}, { status: 200 });
-  return addCorsHeaders(response);
-} 
+
+
+export async function GET(req) {
+  const url = new URL(req.url);
+  const type = url.searchParams.get('type');
+  const workspaceId = url.searchParams.get('wid');
+
+  try {
+    let response;
+
+    if (type === 'mycontact') {
+      response = await fetchmycontact();
+    } 
+    // else if (type === 'workspace' && workspaceId) {
+    //   response = await fetchWorkspaceById(workspaceId);
+    // } else if (type === 'datasets' && workspaceId) {
+    //   response = await fetchDatasetsByWorkspaceId(workspaceId);
+    // } else if (type === 'default') {
+    //   response = await fetchDefaultDataset();
+    // } else if (type === 'fileuploadprogress') {
+    //   response = await fetchFileUploadProgress(workspaceId);
+    // }
+    else {
+      return NextResponse.json({ message: 'Invalid type parameter' }, { status: 400 });
+    }
+
+    return NextResponse.json(response, { status: 200 });
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      return NextResponse.json(
+        { message: `${error.response.data.detail || error.message}` },
+        { status: error.response.status },
+      );
+    } else {
+      return NextResponse.json({ message: `Error fetching ${type}: ${error}` }, { status: 500 });
+    }
+  }
+
+  // try {
+  //   const existingAccount = await db.select()
+  //     .from(accounts);
+
+  //   return NextResponse.json({ leads: existingAccount });
+  // } catch (error) {
+  //   console.error("Database error:", error);
+  //   return NextResponse.json(
+  //     { error: "Failed to fetch leads data", details: error instanceof Error ? error.message : String(error) },
+  //     { status: 500 }
+  //   );
+  //   return addCorsHeaders(response);
+  // }
+}
