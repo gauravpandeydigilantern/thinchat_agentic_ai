@@ -70,7 +70,7 @@ app.use((req, res, next) => {
 
   // ✅ Start the server on `127.0.0.1` (fixes Windows issue)
   const PORT = 5000;
-  const HOST = "127.0.0.1"; // Use localhost instead of 0.0.0.0
+  const HOST = "0.0.0.0"; // Use localhost instead of 0.0.0.0
 
   server.listen(PORT, HOST, () => {
     log(`🚀 Server running at http://${HOST}:${PORT}`);
