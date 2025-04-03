@@ -68,12 +68,18 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ✅ Start the server on `127.0.0.1` (fixes Windows issue)
-  const PORT = 5000;
-  const HOST = "0.0.0.0"; // Use localhost instead of 0.0.0.0
+  // ✅ Start the server
+  const PORT = process.env.PORT || 5000;
+  const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
-  server.listen(PORT, HOST, () => {
+  server.listen(PORT, () => {
     log(`🚀 Server running at http://${HOST}:${PORT}`);
+    server.on("listening", () => {
+      log(`Server bound to host: ${HOST}`);
+    });
+    server.on("error", (err) => {
+      log(`Server error: ${err.message}`, "error");
+    });
   });
 
 })();
