@@ -30,7 +30,7 @@ export async function apiRequest(
     body: options?.body,
     credentials: "include",
   });
-
+ 
   await throwIfResNotOk(res);
 
   // Read the response body once and handle parsing
