@@ -256,11 +256,7 @@ export default function CompaniesPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-neutral-800 mb-2">Companies</h1>
-        <p className="text-neutral-600">Track and manage your target companies</p>
-      </div>
-      
+    
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
