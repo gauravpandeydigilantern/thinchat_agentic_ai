@@ -48,15 +48,21 @@ export class DbStorage implements IStorage {
 
   // Contact operations
   async getContact(id: number): Promise<Contact | undefined> {
+    console.log("Fetching contact with ID:", id);
     const result = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
     return result[0];
   }
 
   async getContactsByUser(userId: number): Promise<Contact[]> {
-    const result = await db.select()
-      .from(contacts)
-      .where(eq(contacts.userId, userId))
-      .orderBy(desc(contacts.createdAt));
+      const query = db.select()
+    .from(contacts)
+    .orderBy(desc(contacts.createdAt));
+
+    // if (userId) {
+    //   query.where(eq(contacts.userId, userId));
+    // }
+
+    const result = await query;
     return result;
   }
 
@@ -89,7 +95,7 @@ export class DbStorage implements IStorage {
   async getCompaniesByUser(userId: number): Promise<Company[]> {
     const result = await db.select()
       .from(companies)
-      .where(eq(companies.userId, userId))
+      // .where(eq(companies.userId, userId))
       .orderBy(desc(companies.createdAt));
     return result;
   }

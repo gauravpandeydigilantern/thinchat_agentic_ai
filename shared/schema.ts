@@ -20,16 +20,20 @@ export const users = pgTable("users", {
 // Contacts table for managing leads and contacts
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  fullName: text("full_name").notNull(),
+  userId: integer("user_id"),
+  account_id: integer("account_id"),
+  fullName: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
-  jobTitle: text("job_title"),
-  companyName: text("company_name"),
+  jobTitle: text("title"),
+  companyName: text("company"),
+  connections: text("connections"),
+  about: text("about"),
+  extractedAt: text("extracted_at"),
   industry: text("industry"),
   teamSize: text("team_size"),
   location: text("location"),
-  linkedInUrl: text("linkedin_url"),
+  linkedInUrl: text("profileUrl"),
   lastContacted: timestamp("last_contacted"),
   notes: text("notes"),
   tags: text("tags").array(),
@@ -49,9 +53,10 @@ export const contacts = pgTable("contacts", {
   salesforceId: text("salesforce_id"),
   hubspotId: text("hubspot_id"),
   isImported: boolean("is_imported").default(false),
-  crmSource: text("crm_source"), // 'salesforce', 'hubspot', or null
+  crmSource: text("source"), // 'salesforce', 'hubspot', or null
   crmLastSynced: timestamp("crm_last_synced"),
   createdAt: timestamp("created_at").defaultNow(),
+  timestamp: timestamp("timestamp"),
   // Connection/outreach status
   connectionSent: boolean("connection_sent").default(false),
   connectionSentDate: timestamp("connection_sent_date"),
@@ -63,12 +68,24 @@ export const contacts = pgTable("contacts", {
   lastInteractionDate: timestamp("last_interaction_date"),
 });
 
+// export const accounts = pgTable("accounts", {
+//   id: serial("id").primaryKey(),
+//   name: text("name").notNull(),
+//   source: text("source").notNull(),
+//   extractedAt: timestamp("extracted_at"),
+//   companyUrl: text("company_url"),
+//   industry: text("industry"),
+//   employees: text("employees"),
+//   timestamp: timestamp("timestamp"),
+//   about: text("about"),
+//   created_at: timestamp("created_at").notNull().defaultNow(),
+//   updated_at: timestamp("updated_at").notNull().defaultNow(),
+// });
+
 // Companies table for tracking organizations
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  name: text("name").notNull(),
-  industry: text("industry"),
+  userId: integer("user_id"),
   website: text("website"),
   size: text("size"),
   location: text("location"),
@@ -77,6 +94,7 @@ export const companies = pgTable("companies", {
   // LinkedIn Sales Navigator fields
   linkedinId: text("linkedin_id"),
   linkedinUrl: text("linkedin_url"),
+  employees: text("employees"),
   employeeCount: integer("employee_count"),
   foundedYear: integer("founded_year"),
   specialties: text("specialties").array(),
@@ -93,6 +111,12 @@ export const companies = pgTable("companies", {
   crmSource: text("crm_source"), // 'salesforce', 'hubspot', or null
   crmLastSynced: timestamp("crm_last_synced"),
   createdAt: timestamp("created_at").defaultNow(),
+  source: text("source"),
+  extractedAt: timestamp("extracted_at"),
+  about: text("about"),
+  name: text("name").notNull(),
+  industry: text("industry"),
+  timestamp: timestamp("timestamp"),
 });
 
 // Credit transactions to track usage

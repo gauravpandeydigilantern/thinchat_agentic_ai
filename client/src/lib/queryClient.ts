@@ -1,7 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
+  if (!res.ok && res.status !== 404) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -32,13 +32,20 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  
-  // Try to parse response as JSON, return text if it fails
-  try {
-    return await res.json();
-  } catch (e) {
-    return await res.text();
+
+  // Read the response body once and handle parsing
+  const contentType = res.headers.get("Content-Type") || "";
+  const responseBody = await res.text(); // Read as text first
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(responseBody); // Parse as JSON if applicable
+    } catch (e) {
+      throw new Error("Failed to parse JSON response");
+    }
   }
+
+  return responseBody; // Return as text if not JSON
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -56,7 +63,20 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+
+    // Read the response body once and handle parsing
+    const contentType = res.headers.get("Content-Type") || "";
+    const responseBody = await res.text(); // Read as text first
+
+    if (contentType.includes("application/json")) {
+      try {
+        return JSON.parse(responseBody); // Parse as JSON if applicable
+      } catch (e) {
+        throw new Error("Failed to parse JSON response");
+      }
+    }
+
+    return responseBody; // Return as text if not JSON
   };
 
 export const queryClient = new QueryClient({

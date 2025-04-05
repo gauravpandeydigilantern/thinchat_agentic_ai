@@ -1,6 +1,9 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { dbStorage as storage } from "./dbStorage";
+import { db } from "./db";
+import { eq } from 'drizzle-orm';
+// const winston = require('winston');
 import {
   insertUserSchema,
   stepOneSchema,
@@ -10,6 +13,8 @@ import {
   insertContactSchema,
   insertCompanySchema,
   InsertUser,
+  contacts,
+  companies
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -363,8 +368,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CONTACT ROUTES
   app.get("/api/contacts", authenticateRequest, async (req, res) => {
     const user = (req as any).user;
+    
     const contacts = await storage.getContactsByUser(user.id);
-
+    // console.log("User ID:", contacts);
     return res.status(200).json({ contacts });
   });
 
@@ -395,10 +401,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  
+  app.post("/api/linkedindata", async (req, res) => {
+    try {
+      // console.log(res,'res');
+      // console.log(req,'req');
+      // const user = (req as any).user;
+      const requestData = req.body;
+      console.log(requestData,'requestData');
+      // Validate the request structure
+      if (!requestData || typeof requestData !== 'object' || !Array.isArray(requestData.profiles)) {
+        return res.status(400).json({ 
+          error: 'Invalid data: Expected an object with a profiles array' 
+        });
+      }
+  
+      const { operation, timestamp, batch_id, profiles } = requestData;
+      
+      if (profiles.length === 0) {
+        return res.status(400).json({ 
+          error: 'Invalid data: Profiles array is empty' 
+        });
+      }
+  
+      let insertedAccounts = 0;
+      let insertedContacts = 0;
+      let skippedAccounts = 0;
+      let skippedContacts = 0;
+      const failedRecords = [];
+  
+      // Sort profiles with Accounts first
+      const sortedProfiles = profiles.sort((a, b) => {
+        if (a.type === b.type) return 0;
+        if (a.type === "Account") return -1;
+        return 1;
+      });
+        
+      for (const item of sortedProfiles) {
+        try {
+          // Handle Accounts
+          if (item.type === 'Account' && item.companyUrl && item.companyUrl !== 'N/A') {
+            const accountData = {
+              name: item.name || null,
+              industry: item.industry || null,
+              source: item.source || null,
+              extractedAt: item.extracted_at || item.extractedAt ? 
+                new Date(item.extracted_at || item.extractedAt) : null,
+              size: item.employees || null,
+              timestamp: item.timestamp ? 
+                (typeof item.timestamp === 'number' ? new Date(item.timestamp) : new Date(item.timestamp)) : null,
+              about: item.about || null,
+              linkedinUrl: item.companyUrl
+            };
+            // const result = await db.select()
+            //     .from(companies)
+            //     .where(eq(companies.linkedinUrl, item.companyUrl))
+            //     .limit(1);
+            //   console.log(result.length,'result');
+            //   console.log(result,'result[0].name');
+            //   console.log(item.name,'item.name');
+            try {
+              
+              
+              // Check if row was actually inserted
+              const result = await db.select()
+                .from(companies)
+                .where(eq(companies.linkedinUrl, item.companyUrl))
+                .limit(1);
+              console.log(result.length,'result');
+              // console.log(result[0].name,'result[0].name');
+              // console.log(item.name,'item.name');
+              if (result.length < 1) {
+                await db.insert(companies)
+                .values(accountData)
+                .onConflictDoNothing();
+                insertedAccounts++;
+              } else {
+                skippedAccounts++;
+              }
+            } catch (error) {
+              // If there's still a conflict, skip
+              skippedAccounts++;
+              
+            }
+          }
+  
+          // Handle Contacts (Leads)
+          if ((item.type === 'Lead' || item.type === 'Contact') && item.profileUrl && item.profileUrl !== 'N/A') {
+            const contactData = {
+              source: item.source || null,
+              fullName: item.name || null,
+              jobTitle: item.title || null,
+              companyName: item.company || null,
+              location: item.location || null,
+              connections: item.connections || null,
+              about: item.about || null,
+              linkedInUrl: item.profileUrl,
+              extractedAt: item.extracted_at || item.extractedAt ? 
+                new Date(item.extracted_at || item.extractedAt) : null,
+              timestamp: item.timestamp ? 
+                (typeof item.timestamp === 'number' ? new Date(item.timestamp) : new Date(item.timestamp)) : null,
+              // userId: user.id
+            };
+            
+            // Look up account if company name is provided
+            if (item.company) {
+              try {
+                const existingAccount = await db.query.companies.findFirst({
+                  where: eq(companies.name, item.company)
+                });
+                
+                if (existingAccount) {
+                  contactData.account_id = existingAccount.id;
+                  contactData.industry = existingAccount.industry;
+                }
+              } catch (error) {
+                console.error(`Account lookup failed for ${item.company}:`, error);
+              }
+            }
+            
+            try {
+             
+              
+              // Check if row was actually inserted
+              const result = await db.select()
+                .from(contacts)
+                .where(eq(contacts.linkedInUrl, item.profileUrl))
+                .limit(1);
+              
+              if (result.length < 1) {
+                await db.insert(contacts)
+                .values(contactData)
+                .onConflictDoNothing();
+                insertedContacts++;
+              } else {
+                skippedContacts++;
+              }
+            } catch (error) {
+              // If there's still a conflict, skip
+              skippedContacts++;
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing record:`, item, error);
+          failedRecords.push({ 
+            record: item, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          });
+        }
+      }
+  
+      return res.status(200).json({
+        operation,
+        batch_id,
+        timestamp: new Date().toISOString(),
+        success: true,
+        stats: {
+          accounts_inserted: insertedAccounts,
+          accounts_skipped: skippedAccounts,
+          contacts_inserted: insertedContacts,
+          contacts_skipped: skippedContacts,
+          failed: failedRecords.length
+        },
+        failedRecords: failedRecords.length > 0 ? failedRecords : undefined
+      });
+  
+    } catch (error) {
+      console.error('Error in linkedindata endpoint:', error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation error",
+          errors: error.errors,
+        });
+      }
+      
+      return res.status(500).json({ 
+        success: false,
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+ 
+  app.post('/api/contacts/update/:id', async (req, res) => {
+    try {
+      const contactId = parseInt(req.params.id);
+      const { email } = req.body;
+      console.log("Contact ID:", contactId);
+      console.log("Email:", email);
+      const contact = await storage.updateContact(contactId,{
+        email,
+        isEnriched: true,
+      })
+      
+  
+      res.json({ message: 'Email updated successfully'});
+    } catch (error) {
+      console.error('Error updating email:', error);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
   app.get("/api/contacts/:id", authenticateRequest, async (req, res) => {
     const user = (req as any).user;
     const contactId = parseInt(req.params.id);
-
+    console.log("Contact ID:", contactId);
     if (isNaN(contactId)) {
       return res.status(400).json({ message: "Invalid contact ID" });
     }
@@ -959,13 +1169,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Email finder endpoint
-  app.post("/api/email/find", authenticateRequest, async (req, res) => {
+   // Email finder endpoint
+   app.post("/api/email/find", authenticateRequest, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const user = req.user; // assuming authenticateRequest sets this
       const { firstName, lastName, domainOrCompany } = req.body;
 
-      // Check if user has enough credits
+      console.log("📨 Received email find request:", req.body);
+
+      if (!firstName || !lastName || !domainOrCompany) {
+        return res.status(400).json({
+          message:
+            "Missing required fields: firstName, lastName, domainOrCompany",
+        });
+      }
+
+      // Use 1 credit for this search
       const findCost = 1;
       const updatedCredits = await storage.useCredits(
         user.id,
@@ -974,75 +1193,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       if (updatedCredits === null) {
-        return res.status(400).json({ message: "Insufficient credits" });
+        return res.status(402).json({ message: "Insufficient credits" });
       }
 
-      const icypeasKey = process.env.ICYPEAS_API_KEY;
-      if (!icypeasKey) {
-        throw new Error("ICYPEAS_API_KEY is not configured");
+      // Step 1: Start Icypeas email search
+      const searchResp = await fetch(
+        "https://app.icypeas.com/api/email-search",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: process.env.ICYPEAS_API_KEY,
+          },
+          body: JSON.stringify({
+            firstname: firstName,
+            lastname: lastName,
+            domainOrCompany,
+          }),
+        },
+      );
+
+      const searchData = await searchResp.json();
+
+      if (!searchData.success || !searchData.item?._id) {
+        console.error("❌ Icypeas search failed:", searchData);
+        return res.status(500).json({
+          message: "Failed to initiate email search",
+          details: searchData,
+        });
       }
 
+      const searchId = searchData.item._id;
+      console.log("🔍 Icypeas Search ID:", searchId);
+
+      // Step 2: Poll for result
       let resultData = null;
       let attempts = 0;
       const maxAttempts = 5;
+      const delay = 2000;
 
-      while (attempts < maxAttempts && !resultData) {
-        const response = await fetch(
-          "https://app.icypeas.com/api/email-search",
+      while (attempts < maxAttempts) {
+        const resultResp = await fetch(
+          "https://app.icypeas.com/api/bulk-single-searchs/read",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `${icypeasKey}`,
+              Authorization: process.env.ICYPEAS_API_KEY,
             },
-            body: JSON.stringify({
-              firstname: firstName,
-              lastname: lastName,
-              domain: domainOrCompany,
-              customObject: {
-                externalId: `${firstName}-${lastName}-${Date.now()}`,
-              },
-            }),
+            body: JSON.stringify({ id: searchId }),
           },
         );
 
-        const data = await response.json();
+        const resultJson = await resultResp.json();
+        const item = resultJson?.items?.[0];
+        const emailEntry = item?.results?.emails?.[0];
 
-        if (data.success && data.item && data.item.email) {
-          resultData = data.item;
-          return res.status(200).json({
-            email: resultData.email,
-            creditsUsed: findCost,
-            creditsRemaining: updatedCredits,
-          });
-        } else if (data.success && data.item && data.item.status === "NONE") {
-          // Handle the case where the email is not yet found
-          console.log("Email not found yet, retrying...");
-        } else if (!data.success) {
-          console.error("IcyPeas API error:", data.message || data);
-          return res.status(500).json({
-            message:
-              "Failed to find email: " + (data.message || "Unknown error"),
-          });
-        } else {
-          console.error("Unexpected IcyPeas API response:", data);
-          return res
-            .status(500)
-            .json({ message: "Failed to find email: Unexpected API response" });
+        console.log(`⏳ Attempt ${attempts + 1} result:`, emailEntry);
+
+        if (emailEntry?.email) {
+          resultData = {
+            email: emailEntry.email,
+            certainty: emailEntry.certainty,
+            mxProvider: emailEntry.mxProvider,
+            firstname: item.results.firstname,
+            lastname: item.results.lastname,
+          };
+          break;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds between attempts
+        await new Promise((resolve) => setTimeout(resolve, delay));
         attempts++;
       }
 
+      // Final response
+      if (resultData) {
+        return res.status(200).json({
+          ...resultData,
+          domain: domainOrCompany,
+          creditsUsed: findCost,
+          creditsRemaining: updatedCredits,
+        });
+      }
+
+      // Refund credits if email not found
+      const refundedCredits = await storage.useCredits(
+        user.id,
+        -findCost,
+        "Refund for unsuccessful email find",
+      );
+
       return res.status(404).json({
-        message: "Email not found",
-        creditsUsed: findCost,
-        creditsRemaining: updatedCredits,
+        message: "Email not found after retries",
+        creditsUsed: 0,
+        creditsRemaining: refundedCredits,
       });
     } catch (error) {
-      console.error("Error finding email:", error);
-      return res.status(500).json({ message: "Failed to find email" });
+      console.error("❗Error finding email:", error);
+      return res.status(500).json({
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : error,
+      });
     }
   });
 
@@ -1068,17 +1319,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Insufficient credits" });
       }
 
-      const isValid = await verifyEmail(email);
+      console.log("📧 Starting email verification for:", email);
 
+      // Step 1: Initiate verification with Icypeas
+      const verifyResp = await fetch(
+        "https://app.icypeas.com/api/email-verification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `${process.env.ICYPEAS_API_KEY}`,
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+
+      const verifyData = await verifyResp.json();
+
+      if (!verifyData.success || !verifyData.item?._id) {
+        console.error("❌ Icypeas verification failed:", verifyData);
+        // Refund credits if verification initiation failed
+        await storage.useCredits(
+          user.id,
+          -verifyCost,
+          "Refund for failed verification initiation",
+        );
+        return res.status(500).json({
+          message: "Failed to initiate email verification",
+          details: verifyData,
+        });
+      }
+
+      const searchId = verifyData.item._id;
+      console.log("🔍 Icypeas Verification ID:", searchId);
+
+      // Step 2: Poll for result with comprehensive status handling
+      let resultData = null;
+      let attempts = 0;
+      const maxAttempts = 10; // Increased attempts to account for slower processing
+      const delay = 2000;
+
+      while (attempts < maxAttempts) {
+        const resultResp = await fetch(
+          "https://app.icypeas.com/api/bulk-single-searchs/read",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: process.env.ICYPEAS_API_KEY,
+            },
+            body: JSON.stringify({ id: searchId }),
+          },
+        );
+
+        const resultJson = await resultResp.json();
+
+        console.log("🔍 Icypeas Verification Result:", resultJson);
+
+        const item = resultJson?.items?.[0];
+        const status = item?.status;
+
+        console.log(`⏳ Attempt ${attempts + 1} verification status:`, status);
+
+        // Handle all possible status cases
+        switch (status) {
+          case "FOUND":
+          case "DEBITED":
+            // Successful verification
+            resultData = {
+              email,
+              isValid: true,
+              status: item.status,
+              verificationLevel: item.verificationLevel,
+              mxProvider: item.mxProvider,
+            };
+            break;
+
+          case "NOT_FOUND":
+          case "DEBITED_NOT_FOUND":
+            // Email not found/invalid
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Email address not found or invalid",
+            };
+            break;
+
+          case "BAD_INPUT":
+            // Invalid input format
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Invalid email format provided",
+            };
+            break;
+
+          case "INSUFFICIENT_FUNDS":
+            // Shouldn't happen since we check credits first
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Insufficient funds in Icypeas account",
+            };
+            break;
+
+          case "ABORTED":
+            // Verification was cancelled
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Verification was aborted",
+            };
+            break;
+
+          case "COMPLETED":
+            // Fallback completed status
+            resultData = {
+              email,
+              isValid: item.isValid || false,
+              status: item.status,
+              verificationLevel: item.verificationLevel,
+              mxProvider: item.mxProvider,
+            };
+            break;
+
+          case "IN_PROGRESS":
+          case "SCHEDULED":
+          case "NONE":
+            // Still processing - continue polling
+            break;
+
+          default:
+            // Unknown status
+            resultData = {
+              email,
+              isValid: false,
+              status: "UNKNOWN",
+              message: "Unknown verification status",
+            };
+        }
+
+        // If we have a final result, break the loop
+        if (
+          resultData &&
+          !["NONE", "SCHEDULED", "IN_PROGRESS"].includes(status)
+        ) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        attempts++;
+      }
+
+      // Final response handling
+      if (resultData) {
+        return res.status(200).json({
+          ...resultData,
+          creditsUsed: verifyCost,
+          creditsRemaining: updatedCredits,
+        });
+      }
+
+      // If verification didn't complete after retries
       return res.status(200).json({
-        success: true,
-        isValid,
+        email,
+        isValid: false,
+        status: "TIMEOUT",
+        message: "Verification did not complete in time",
         creditsUsed: verifyCost,
         creditsRemaining: updatedCredits,
       });
     } catch (error) {
-      console.error("Error verifying email:", error);
-      return res.status(500).json({ message: "Failed to verify email" });
+      console.error("❗Error verifying email:", error);
+      // Refund credits on error
+      await storage.useCredits(
+        user.id,
+        -verifyCost,
+        "Refund due to verification error",
+      );
+      return res.status(500).json({
+        message: "Internal server error during verification",
+        error: error instanceof Error ? error.message : error,
+      });
     }
   });
 
@@ -1122,11 +1548,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // In a production environment, this would call an enrichment API
       // For this demo, we'll just simulate it with sample data
-
+      const enmaill = `${contact.fullName.toLowerCase().replace(/\s/g, ".")}@${contact.companyName?.toLowerCase().replace(/\s/g, "")}`
+      console.log("Enriching contact:", enmaill);
       const enrichedData = {
         email:
           contact.email ||
-          `${contact.fullName.toLowerCase().replace(/\s/g, ".")}@${contact.companyName?.toLowerCase().replace(/\s/g, "")}.com`,
+          `${contact.fullName.toLowerCase().replace(/\s/g, ".")}@${contact.companyName?.toLowerCase().replace(/\s/g, "")}`,
         phone: contact.phone || "+1 (555) 123-4567",
         linkedInUrl:
           contact.linkedInUrl ||
@@ -1136,7 +1563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enrichmentSource: "AI-CRM",
         enrichmentDate: new Date(),
       };
-
+      console.log("Enriched data:", enrichedData);
       // Update the contact with enriched data
       const updatedContact = await storage.updateContact(
         contactId,
