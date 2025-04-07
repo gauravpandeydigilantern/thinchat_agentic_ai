@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // User table for authentication
 export const users = pgTable("users", {
@@ -17,11 +18,49 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Companies table for tracking organizations
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  website: text("website"),
+  size: text("size"),
+  location: text("location"),
+  description: text("description"),
+  phone: text("phone"),
+  // LinkedIn Sales Navigator fields
+  linkedinId: text("linkedin_id"),
+  linkedinUrl: text("linkedin_url"),
+  employees: text("employees"),
+  employeeCount: integer("employee_count"),
+  foundedYear: integer("founded_year"),
+  specialties: text("specialties").array(),
+  logoUrl: text("logo_url"),
+  followers: integer("followers"),
+  // Enrichment status
+  isEnriched: boolean("is_enriched").default(false),
+  enrichmentSource: text("enrichment_source"),
+  enrichmentDate: timestamp("enrichment_date"),
+  // CRM integration fields
+  salesforceId: text("salesforce_id"),
+  hubspotId: text("hubspot_id"),
+  isImported: boolean("is_imported").default(false),
+  crmSource: text("crm_source"), // 'salesforce', 'hubspot', or null
+  crmLastSynced: timestamp("crm_last_synced"),
+  createdAt: timestamp("created_at").defaultNow(),
+  source: text("source"),
+  extractedAt: timestamp("extracted_at"),
+  about: text("about"),
+  name: text("name").notNull(),
+  industry: text("industry"),
+  timestamp: timestamp("timestamp"),
+});
+
 // Contacts table for managing leads and contacts
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id"),
   account_id: integer("account_id"),
+  companyId: integer("company_id"),
   fullName: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -68,56 +107,18 @@ export const contacts = pgTable("contacts", {
   lastInteractionDate: timestamp("last_interaction_date"),
 });
 
-// export const accounts = pgTable("accounts", {
-//   id: serial("id").primaryKey(),
-//   name: text("name").notNull(),
-//   source: text("source").notNull(),
-//   extractedAt: timestamp("extracted_at"),
-//   companyUrl: text("company_url"),
-//   industry: text("industry"),
-//   employees: text("employees"),
-//   timestamp: timestamp("timestamp"),
-//   about: text("about"),
-//   created_at: timestamp("created_at").notNull().defaultNow(),
-//   updated_at: timestamp("updated_at").notNull().defaultNow(),
-// });
+// Define company relations
+export const companiesRelations = relations(companies, ({ many }) => ({
+  contacts: many(contacts),
+}));
 
-// Companies table for tracking organizations
-export const companies = pgTable("companies", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id"),
-  website: text("website"),
-  size: text("size"),
-  location: text("location"),
-  description: text("description"),
-  phone: text("phone"),
-  // LinkedIn Sales Navigator fields
-  linkedinId: text("linkedin_id"),
-  linkedinUrl: text("linkedin_url"),
-  employees: text("employees"),
-  employeeCount: integer("employee_count"),
-  foundedYear: integer("founded_year"),
-  specialties: text("specialties").array(),
-  logoUrl: text("logo_url"),
-  followers: integer("followers"),
-  // Enrichment status
-  isEnriched: boolean("is_enriched").default(false),
-  enrichmentSource: text("enrichment_source"),
-  enrichmentDate: timestamp("enrichment_date"),
-  // CRM integration fields
-  salesforceId: text("salesforce_id"),
-  hubspotId: text("hubspot_id"),
-  isImported: boolean("is_imported").default(false),
-  crmSource: text("crm_source"), // 'salesforce', 'hubspot', or null
-  crmLastSynced: timestamp("crm_last_synced"),
-  createdAt: timestamp("created_at").defaultNow(),
-  source: text("source"),
-  extractedAt: timestamp("extracted_at"),
-  about: text("about"),
-  name: text("name").notNull(),
-  industry: text("industry"),
-  timestamp: timestamp("timestamp"),
-});
+// Define contact relations
+export const contactsRelations = relations(contacts, ({ one }) => ({
+  company: one(companies, {
+    fields: [contacts.companyId],
+    references: [companies.id],
+  }),
+}));
 
 // Credit transactions to track usage
 export const creditTransactions = pgTable("credit_transactions", {
@@ -141,6 +142,7 @@ export const insertContactSchema = createInsertSchema(contacts)
   .omit({ id: true, createdAt: true, tags: true })
   .extend({
     tags: z.array(z.string()).optional(),
+    companyId: z.number().optional(),
   });
 
 export const insertCompanySchema = createInsertSchema(companies)

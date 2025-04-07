@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SendEmailDialog } from "@/components/contacts/SendEmailDialog";
+import { ContactDetailsDialog } from "@/components/contacts/ContactDetailsDialog";
 import {
   Loader2,
   Plus,
@@ -77,8 +78,9 @@ export default function ContactsNewPage() {
   const [isRevealingEmail, setIsRevealingEmail] = useState(false);
   const [isEnrichmentDialogOpen, setIsEnrichmentDialogOpen] = useState(false);
   const [isLinkedInDialogOpen, setIsLinkedInDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
-
+  
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [verifyingEmailId, setVerifyingEmailId] = useState<number | null>(null);
@@ -108,12 +110,15 @@ export default function ContactsNewPage() {
 
       if (emailResponse.email) {
         // Update contact with found email
-        const updateResponse = await apiRequest(`/api/contacts/update/${contact.id}`, {
-          method: "POST",
-          body: JSON.stringify({
-            email: emailResponse.email,
-          }),
-        });
+        const updateResponse = await apiRequest(
+          `/api/contacts/update/${contact.id}`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              email: emailResponse.email,
+            }),
+          },
+        );
 
         return {
           ...emailResponse,
@@ -157,7 +162,6 @@ export default function ContactsNewPage() {
     setFindingEmailId(contact.id);
     await findEmailMutation.mutateAsync(contact);
   };
-
 
   // Get user's contacts
   const { data, isLoading } = useQuery({
@@ -222,21 +226,10 @@ export default function ContactsNewPage() {
       id: number;
       contact: ContactFormValues;
     }) => {
-      const response = await apiRequest(`/api/contacts/${id}`, {
+      return apiRequest(`/api/contacts/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
         body: JSON.stringify(contact),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json(); // Read the error response once
-        throw new Error(errorData.message || "Failed to update contact");
-      }
-
-      return response.json(); // Read and return the success response
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -730,442 +723,473 @@ export default function ContactsNewPage() {
   };
 
   return (
-    <div className="w-full">
-     
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-grow">
-          <Card>
-            <CardHeader className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Contacts</CardTitle>
-                  <CardDescription>
-                    Manage your business contacts
-                  </CardDescription>
-                </div>
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" /> Add Contact
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="flex justify-center items-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-                </div>
-              ) : filteredContacts.length > 0 ? (
-                <ContactsTable
-                  contacts={paginatedContacts}
-                  companies={companiesData?.companies || []}
-                  onEmailReveal={handleRevealEmail}
-                  onEditContact={setEditContact}
-                  onDeleteContact={(contact) => {
-                    setSelectedContact(contact);
-                    setIsDeleteDialogOpen(true);
-                  }}
-                  onViewDetails={(contact) => {
-                    toast({
-                      title: "View Contact",
-                      description: `Viewing ${contact.fullName}'s details`,
-                    });
-                  }}
-                  onEnrichContact={(contact) => {
-                    setSelectedContact(contact);
-                    setIsEnrichmentDialogOpen(true);
-                  }}
-                  onSendEmail={(contact) => {
-                    setSelectedContact(contact);
-                    setIsEmailDialogOpen(true);
-                    generateEmailMessage(contact);
-                  }}
-                  isRevealingEmail={isRevealingEmail}
-                  isVerifyingEmail={isVerifyingEmail}
-                  verifyingEmailId={verifyingEmailId}
-                  isEmailFinding={isEmailFinding}
-                  findingEmailId={findingEmailId}
-                  onEmailFind={handleEmailFind}
-                  onVerifyEmail={handleVerifyEmail}
-                  handleAIWriter={handleWriteMessage}
-                  handleCRMExport={(contact) => {
-                    toast({
-                      title: "Export to CRM",
-                      description: `Exporting ${contact.fullName} to CRM`,
-                    });
-                  }}
-                  pageSize={pageSize}
-                  onPageSizeChange={handlePageSizeChange}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="flex flex-col items-center justify-center mb-4">
-                    <Search className="h-12 w-12 text-gray-300 mb-2" />
-                    <h3 className="text-lg font-medium">No contacts found</h3>
+    <div className="w-full min-h-screen">
+      {/* Main container with proper overflow handling */}
+      <div className="px-4 max-w-[2000px] mx-auto">
+        {/* Contacts section */}
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="w-full">
+            <Card className="overflow-hidden">
+              {" "}
+              {/* Add overflow-hidden to card */}
+              <CardHeader className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Contacts</CardTitle>
+                    <CardDescription>
+                      Manage your business contacts
+                    </CardDescription>
                   </div>
-                  <p className="text-gray-500 text-center mb-6">
-                    {searchTerm
-                      ? "No contacts match your search criteria"
-                      : "Get started by adding your first contact"}
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsCreateDialogOpen(true)}
-                  >
+                  <Button onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" /> Add Contact
                   </Button>
                 </div>
-              )}
-
-              {filteredContacts.length > 0 && (
-                <div className="flex items-center justify-between border-t p-3">
-                  <div className="flex items-center space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="text-sm"
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-1" /> Previous
-                    </Button>
-
-                    <div className="px-2">
-                      <span className="text-sm">
-                        {currentPage} of {totalPages}
-                      </span>
+              </CardHeader>
+              <CardContent className="p-0">
+                {/* Add responsive table container */}
+                <div className="w-full overflow-auto">
+                  {isLoading ? (
+                    <div className="flex justify-center items-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                     </div>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="text-sm"
-                    >
-                      Next <ArrowRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
+                  ) : filteredContacts.length > 0 ? (
+                    <ContactsTable
+                      contacts={paginatedContacts}
+                      companies={companiesData?.companies || []}
+                      onEmailReveal={handleRevealEmail}
+                      onEditContact={setEditContact}
+                      onDeleteContact={(contact) => {
+                        setSelectedContact(contact);
+                        setIsDeleteDialogOpen(true);
+                      }}
+                      onViewDetails={(contact) => {
+                        setSelectedContact(contact);
+                        setIsDetailsDialogOpen(true);
+                      }}
+                      onEnrichContact={(contact) => {
+                        setSelectedContact(contact);
+                        setIsEnrichmentDialogOpen(true);
+                      }}
+                      onSendEmail={(contact) => {
+                        setSelectedContact(contact);
+                        setIsEmailDialogOpen(true);
+                        generateEmailMessage(contact);
+                      }}
+                      isRevealingEmail={isRevealingEmail}
+                      isVerifyingEmail={isVerifyingEmail}
+                      verifyingEmailId={verifyingEmailId}
+                      isEmailFinding={isEmailFinding}
+                      findingEmailId={findingEmailId}
+                      onEmailFind={handleEmailFind}
+                      onVerifyEmail={handleVerifyEmail}
+                      handleAIWriter={handleWriteMessage}
+                      handleCRMExport={(contact) => {
+                        toast({
+                          title: "Export to CRM",
+                          description: `Exporting ${contact.fullName} to CRM`,
+                        });
+                      }}
+                      pageSize={pageSize}
+                      onPageSizeChange={handlePageSizeChange}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <div className="flex flex-col items-center justify-center mb-4">
+                        <Search className="h-12 w-12 text-gray-300 mb-2" />
+                        <h3 className="text-lg font-medium">
+                          No contacts found
+                        </h3>
+                      </div>
+                      <p className="text-gray-500 text-center mb-6">
+                        {searchTerm
+                          ? "No contacts match your search criteria"
+                          : "Get started by adding your first contact"}
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsCreateDialogOpen(true)}
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Add Contact
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Pagination section */}
+                {filteredContacts.length > 0 && (
+                  <div className="flex items-center justify-between border-t p-3">
+                    <div className="flex items-center space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="text-sm"
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-1" /> Previous
+                      </Button>
+
+                      <div className="px-2">
+                        <span className="text-sm">
+                          {currentPage} of {totalPages}
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="text-sm"
+                      >
+                        Next <ArrowRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
 
-      {/* Create Contact Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Add New Contact</DialogTitle>
-            <DialogDescription>
-              Create a new contact in your CRM system
-            </DialogDescription>
-          </DialogHeader>
+        {/* Create Contact Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Add New Contact</DialogTitle>
+              <DialogDescription>
+                Create a new contact in your CRM system
+              </DialogDescription>
+            </DialogHeader>
 
-          <ContactForm
-            form={form}
-            companies={companiesData?.companies || []}
-            onSubmit={(data) => createContactMutation.mutate(data)}
-            isSubmitting={createContactMutation.isPending}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Contact Dialog */}
-      <Dialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) setEditContact(null);
-        }}
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
-            <DialogDescription>
-              Update this contact's information
-            </DialogDescription>
-          </DialogHeader>
-
-          {editContact && (
             <ContactForm
               form={form}
               companies={companiesData?.companies || []}
-              onSubmit={(data) =>
-                updateContactMutation.mutate({
-                  id: editContact.id,
-                  contact: data,
-                })
-              }
-              isSubmitting={updateContactMutation.isPending}
+              onSubmit={(data) => createContactMutation.mutate(data)}
+              isSubmitting={createContactMutation.isPending}
+              onCancel={() => setIsCreateDialogOpen(false)}
             />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Contact Dialog */}
-      {selectedContact && (
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Contact</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this contact? This action cannot
-                be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsDeleteDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => deleteContactMutation.mutate(selectedContact.id)}
-                disabled={deleteContactMutation.isPending}
-              >
-                {deleteContactMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete Contact"
-                )}
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
 
-      {/* LinkedIn Connection Request Dialog */}
-      {selectedContact && (
+        {/* Edit Contact Dialog */}
         <Dialog
-          open={isLinkedInDialogOpen}
-          onOpenChange={setIsLinkedInDialogOpen}
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditDialogOpen(open);
+            if (!open) setEditContact(null);
+          }}
         >
-          <DialogContent>
+          <DialogContent className="max-w-xl">
             <DialogHeader>
-              <DialogTitle>Send LinkedIn Connection Request</DialogTitle>
+              <DialogTitle>Edit Contact</DialogTitle>
               <DialogDescription>
-                Send a personalized connection request to{" "}
-                {selectedContact.fullName}
+                Update this contact's information
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="flex items-start space-x-4">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                  <Linkedin className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-medium">{selectedContact.fullName}</h4>
-                  <p className="text-sm text-gray-500">
-                    {selectedContact.jobTitle}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Personalized Message
-                </label>
-                <textarea
-                  className="w-full p-2 border border-gray-200 rounded-md min-h-[120px]"
-                  placeholder={`Hi ${selectedContact.fullName},\n\nI'd like to connect with you on LinkedIn.\n\n\nBest regards,\n${user?.fullName}`}
-                  value={generatedMessage}
-                  onChange={(e) => setGeneratedMessage(e.target.value)}
-                  id="linkedin-message"
-                />
-                <div className="flex justify-between items-center mt-2">
-                  <p className="text-xs text-gray-500">
-                    This will cost 2 credits to send a connection request
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => generateLinkedInMessage(selectedContact)}
-                    disabled={isGeneratingMessage}
-                  >
-                    {isGeneratingMessage ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-3 w-3 text-amber-500" />
-                        Generate AI Message
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsLinkedInDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  const message = (
-                    document.getElementById(
-                      "linkedin-message",
-                    ) as HTMLTextAreaElement
-                  ).value;
-                  sendLinkedInRequestMutation.mutate({
-                    contactId: selectedContact.id,
-                    message,
-                  });
-                }}
-                disabled={sendLinkedInRequestMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {sendLinkedInRequestMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Connection Request"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Contact Enrichment Dialog */}
-      {selectedContact && (
-        <Dialog
-          open={isEnrichmentDialogOpen}
-          onOpenChange={setIsEnrichmentDialogOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Enrich Contact Data</DialogTitle>
-              <DialogDescription>
-                Use AI to find additional information about{" "}
-                {selectedContact.fullName}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="flex items-start space-x-4">
-                <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-medium">{selectedContact.fullName}</h4>
-                  <p className="text-sm text-gray-500">
-                    {selectedContact.jobTitle}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Select data to enrich:
-                </label>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="space-y-3">
-                      {enrichmentOptions.map((option) => (
-                        <div
-                          key={option.id}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center">
-                            <Checkbox
-                              id={`enrich-${option.id}`}
-                              checked={option.checked}
-                              onCheckedChange={() =>
-                                toggleEnrichmentOption(option.id)
-                              }
-                              className="mr-2"
-                            />
-                            <label
-                              htmlFor={`enrich-${option.id}`}
-                              className="text-sm font-medium cursor-pointer flex items-center"
-                            >
-                              {option.icon}
-                              <span className="ml-2">{option.label}</span>
-                            </label>
-                          </div>
-                          <Badge variant="outline" className="ml-4">
-                            {option.creditCost} Credit
-                            {option.creditCost > 1 ? "s" : ""}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
-                <span className="text-sm font-medium">Total Cost</span>
-                <Badge variant="outline" className="bg-white">
-                  {getTotalEnrichmentCost()} Credit
-                  {getTotalEnrichmentCost() > 1 ? "s" : ""}
-                </Badge>
-              </div>
-
-              <div className="text-sm text-gray-500">
-                Your available credits:{" "}
-                <span className="font-medium">{user?.credits || 0}</span>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsEnrichmentDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => enrichContactMutation.mutate(selectedContact.id)}
-                disabled={
-                  enrichContactMutation.isPending ||
-                  getTotalEnrichmentCost() > (user?.credits || 0) ||
-                  getTotalEnrichmentCost() === 0
+            {editContact && (
+              <ContactForm
+                form={form}
+                companies={companiesData?.companies || []}
+                onSubmit={(data) =>
+                  updateContactMutation.mutate({
+                    id: editContact.id,
+                    contact: data,
+                  })
                 }
-              >
-                {enrichContactMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enriching...
-                  </>
-                ) : (
-                  "Enrich Contact"
-                )}
-              </Button>
-            </DialogFooter>
+                isSubmitting={updateContactMutation.isPending}
+                onCancel={() => {
+                  setIsEditDialogOpen(false);
+                  setEditContact(null);
+                }}
+              />
+            )}
           </DialogContent>
         </Dialog>
-      )}
 
-      {/* Send Email Dialog */}
-      {selectedContact && (
-        <SendEmailDialog
-          isOpen={isEmailDialogOpen}
-          onClose={() => setIsEmailDialogOpen(false)}
+        {/* Delete Contact Dialog */}
+        {selectedContact && (
+          <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Contact</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this contact? This action
+                  cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDeleteDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() =>
+                    deleteContactMutation.mutate(selectedContact.id)
+                  }
+                  disabled={deleteContactMutation.isPending}
+                >
+                  {deleteContactMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Contact"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* LinkedIn Connection Request Dialog */}
+        {selectedContact && (
+          <Dialog
+            open={isLinkedInDialogOpen}
+            onOpenChange={setIsLinkedInDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Send LinkedIn Connection Request</DialogTitle>
+                <DialogDescription>
+                  Send a personalized connection request to{" "}
+                  {selectedContact.fullName}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div className="flex items-start space-x-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Linkedin className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium">{selectedContact.fullName}</h4>
+                    <p className="text-sm text-gray-500">
+                      {selectedContact.jobTitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Personalized Message
+                  </label>
+                  <textarea
+                    className="w-full p-2 border border-gray-200 rounded-md min-h-[120px]"
+                    placeholder={`Hi ${selectedContact.fullName},\n\nI'd like to connect with you on LinkedIn.\n\n\nBest regards,\n${user?.fullName}`}
+                    value={generatedMessage}
+                    onChange={(e) => setGeneratedMessage(e.target.value)}
+                    id="linkedin-message"
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-xs text-gray-500">
+                      This will cost 2 credits to send a connection request
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => generateLinkedInMessage(selectedContact)}
+                      disabled={isGeneratingMessage}
+                    >
+                      {isGeneratingMessage ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-3 w-3 text-amber-500" />
+                          Generate AI Message
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsLinkedInDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const message = (
+                      document.getElementById(
+                        "linkedin-message",
+                      ) as HTMLTextAreaElement
+                    ).value;
+                    sendLinkedInRequestMutation.mutate({
+                      contactId: selectedContact.id,
+                      message,
+                    });
+                  }}
+                  disabled={sendLinkedInRequestMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {sendLinkedInRequestMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Send Connection Request"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Contact Enrichment Dialog */}
+        {selectedContact && (
+          <Dialog
+            open={isEnrichmentDialogOpen}
+            onOpenChange={setIsEnrichmentDialogOpen}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Enrich Contact Data</DialogTitle>
+                <DialogDescription>
+                  Use AI to find additional information about{" "}
+                  {selectedContact.fullName}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div className="flex items-start space-x-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium">{selectedContact.fullName}</h4>
+                    <p className="text-sm text-gray-500">
+                      {selectedContact.jobTitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Select data to enrich:
+                  </label>
+                  <Card>
+                    <CardContent className="p-3">
+                      <div className="space-y-3">
+                        {enrichmentOptions.map((option) => (
+                          <div
+                            key={option.id}
+                            className="flex items-center justify-between"
+                          >
+                            <div className="flex items-center">
+                              <Checkbox
+                                id={`enrich-${option.id}`}
+                                checked={option.checked}
+                                onCheckedChange={() =>
+                                  toggleEnrichmentOption(option.id)
+                                }
+                                className="mr-2"
+                              />
+                              <label
+                                htmlFor={`enrich-${option.id}`}
+                                className="text-sm font-medium cursor-pointer flex items-center"
+                              >
+                                {option.icon}
+                                <span className="ml-2">{option.label}</span>
+                              </label>
+                            </div>
+                            <Badge variant="outline" className="ml-4">
+                              {option.creditCost} Credit
+                              {option.creditCost > 1 ? "s" : ""}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                  <span className="text-sm font-medium">Total Cost</span>
+                  <Badge variant="outline" className="bg-white">
+                    {getTotalEnrichmentCost()} Credit
+                    {getTotalEnrichmentCost() > 1 ? "s" : ""}
+                  </Badge>
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  Your available credits:{" "}
+                  <span className="font-medium">{user?.credits || 0}</span>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEnrichmentDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() =>
+                    enrichContactMutation.mutate(selectedContact.id)
+                  }
+                  disabled={
+                    enrichContactMutation.isPending ||
+                    getTotalEnrichmentCost() > (user?.credits || 0) ||
+                    getTotalEnrichmentCost() === 0
+                  }
+                >
+                  {enrichContactMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enriching...
+                    </>
+                  ) : (
+                    "Enrich Contact"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Send Email Dialog */}
+        {selectedContact && (
+          <SendEmailDialog
+            isOpen={isEmailDialogOpen}
+            onClose={() => setIsEmailDialogOpen(false)}
+            contact={selectedContact}
+            user={user}
+            onGenerateAIMessage={generateEmailMessage}
+            isGeneratingMessage={isGeneratingEmailMessage}
+            generatedMessage={emailBody}
+            emailSubject={emailSubject}
+            setEmailSubject={setEmailSubject}
+          />
+        )}
+        
+        {/* Contact Details Dialog */}
+        <ContactDetailsDialog
           contact={selectedContact}
-          user={user}
-          onGenerateAIMessage={generateEmailMessage}
-          isGeneratingMessage={isGeneratingEmailMessage}
-          generatedMessage={emailBody}
-          emailSubject={emailSubject}
-          setEmailSubject={setEmailSubject}
+          open={isDetailsDialogOpen}
+          onOpenChange={setIsDetailsDialogOpen}
+          onEdit={(contact) => {
+            setEditContact(contact);
+            setIsDetailsDialogOpen(false);
+          }}
         />
-      )}
+      </div>
     </div>
   );
 }

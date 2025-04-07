@@ -68,9 +68,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ✅ Start the server on `127.0.0.1` (fixes Windows issue)
+  // ✅ Start the server on `0.0.0.0` (for Replit environment)
   const PORT = 5000;
-  const HOST = "127.0.0.1"; // Use localhost instead of 0.0.0.0
+  const HOST = "127.0.0.1"; // Use 0.0.0.0 for Replit environment
 
   server.listen(PORT, HOST, () => {
     log(`🚀 Server running at http://${HOST}:${PORT}`);

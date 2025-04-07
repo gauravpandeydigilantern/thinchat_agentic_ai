@@ -1,0 +1,244 @@
+  app.post("/api/verify-email", authenticateRequest, async (req, res) => {
+    try {
+      let verifyCost = 1; // Variable to track credit cost
+      const user = (req as any).user;
+      const { email, contactId } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      // Credit cost for email verification
+      const updatedCredits = await storage.useCredits(
+        user.id,
+        verifyCost,
+        `Email verification for ${email}`,
+      );
+
+      if (updatedCredits === null) {
+        return res.status(400).json({ message: "Insufficient credits" });
+      }
+
+      console.log("📧 Starting email verification for:", email);
+
+      // Step 1: Initiate verification with Icypeas
+      const verifyResp = await fetch(
+        "https://app.icypeas.com/api/email-verification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `${process.env.ICYPEAS_API_KEY}`,
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+
+      const verifyData = await verifyResp.json();
+
+      if (!verifyData.success || !verifyData.item?._id) {
+        console.error("❌ Icypeas verification failed:", verifyData);
+        // Refund credits if verification initiation failed
+        await storage.useCredits(
+          user.id,
+          -verifyCost,
+          "Refund for failed verification initiation",
+        );
+        return res.status(500).json({
+          message: "Failed to initiate email verification",
+          details: verifyData,
+        });
+      }
+
+      const searchId = verifyData.item._id;
+      console.log("🔍 Icypeas Verification ID:", searchId);
+
+      // Step 2: Poll for result with comprehensive status handling
+      let resultData = null;
+      let attempts = 0;
+      const maxAttempts = 10; // Increased attempts to account for slower processing
+      const delay = 2000;
+
+      while (attempts < maxAttempts) {
+        const resultResp = await fetch(
+          "https://app.icypeas.com/api/bulk-single-searchs/read",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: process.env.ICYPEAS_API_KEY,
+            },
+            body: JSON.stringify({ id: searchId }),
+          },
+        );
+
+        const resultJson = await resultResp.json();
+
+        console.log("🔍 Icypeas Verification Result:", resultJson);
+
+        const item = resultJson?.items?.[0];
+        const status = item?.status;
+
+        console.log(`⏳ Attempt ${attempts + 1} verification status:`, status);
+
+        // Handle all possible status cases
+        switch (status) {
+          case "FOUND":
+          case "DEBITED":
+            // Successful verification
+            resultData = {
+              email,
+              isValid: true,
+              status: item.status,
+              verificationLevel: item.verificationLevel,
+              mxProvider: item.mxProvider,
+            };
+            break;
+
+          case "NOT_FOUND":
+          case "DEBITED_NOT_FOUND":
+            // Email not found/invalid
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Email address not found or invalid",
+            };
+            break;
+
+          case "BAD_INPUT":
+            // Invalid input format
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Invalid email format provided",
+            };
+            break;
+
+          case "INSUFFICIENT_FUNDS":
+            // Shouldn't happen since we check credits first
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Insufficient funds in Icypeas account",
+            };
+            break;
+
+          case "ABORTED":
+            // Verification was cancelled
+            resultData = {
+              email,
+              isValid: false,
+              status: item.status,
+              message: "Verification was aborted",
+            };
+            break;
+
+          case "COMPLETED":
+            // Fallback completed status
+            resultData = {
+              email,
+              isValid: item.isValid || false,
+              status: item.status,
+              verificationLevel: item.verificationLevel,
+              mxProvider: item.mxProvider,
+            };
+            break;
+
+          case "IN_PROGRESS":
+          case "SCHEDULED":
+          case "NONE":
+            // Still processing - continue polling
+            break;
+
+          default:
+            // Unknown status
+            resultData = {
+              email,
+              isValid: false,
+              status: "UNKNOWN",
+              message: "Unknown verification status",
+            };
+        }
+
+        // If we have a final result, break the loop
+        if (
+          resultData &&
+          !["NONE", "SCHEDULED", "IN_PROGRESS"].includes(status)
+        ) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        attempts++;
+      }
+
+      // Final response handling
+      if (resultData) {
+        // Update all contacts with this email to set emailVerified status
+        try {
+          // Find all contacts with this email that belong to the current user
+          const userContacts = await storage.getContactsByUser(user.id);
+          const contactsWithEmail = userContacts.filter(c => c.email === email);
+          
+          // Update each contact with the verification result
+          for (const contact of contactsWithEmail) {
+            await storage.updateContact(contact.id, {
+              emailVerified: resultData.isValid || false,
+              enrichmentDate: new Date(),
+              enrichmentSource: 'icypeas'
+            });
+            console.log(`Updated email verification status for contact ID ${contact.id}: ${resultData.isValid}`);
+          }
+          
+          // If a specific contactId was provided, make sure it's updated even if email doesn't match
+          if (contactId && !contactsWithEmail.some(c => c.id === contactId)) {
+            const contact = await storage.getContact(contactId);
+            if (contact && contact.userId === user.id) {
+              await storage.updateContact(contactId, {
+                emailVerified: resultData.isValid || false,
+                enrichmentDate: new Date(),
+                enrichmentSource: 'icypeas'
+              });
+              console.log(`Updated email verification for specified contact ID ${contactId}`);
+            }
+          }
+          
+          console.log(`Updated contacts with email verification status`);
+        } catch (updateError) {
+          console.error("Error updating contacts with verification status:", updateError);
+          // Continue despite error to at least return the verification result
+        }
+        
+        return res.status(200).json({
+          ...resultData,
+          creditsUsed: 0.5, // Display as 0.5 to user for UX consistency
+          creditsRemaining: updatedCredits,
+        });
+      }
+
+      // If verification didn't complete after retries
+      return res.status(200).json({
+        email,
+        isValid: false,
+        status: "TIMEOUT",
+        message: "Verification did not complete in time",
+        creditsUsed: verifyCost,
+        creditsRemaining: updatedCredits,
+      });
+    } catch (error) {
+      console.error("❗Error verifying email:", error);
+      // Refund credits on error
+      await storage.useCredits(
+        user.id,
+        -verifyCost,
+        "Refund due to verification error",
+      );
+      return res.status(500).json({
+        message: "Internal server error during verification",
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  });
