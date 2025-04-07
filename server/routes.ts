@@ -590,12 +590,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const contactId = parseInt(req.params.id);
       const { email } = req.body;
+      const { email_verified } = req.body;
+      const dataa = {};
+      if(email){
+          const dataa = {
+            email,
+          isEnriched: true,
+          }
+      }
+      if(email_verified){
+        const dataa = {
+          email_verified,
+        }
+
+      }
       console.log("Contact ID:", contactId);
       console.log("Email:", email);
-      const contact = await storage.updateContact(contactId,{
-        email,
-        isEnriched: true,
-      })
+      const contact = await storage.updateContact(contactId,dataa)
       
   
       res.json({ message: 'Email updated successfully'});

@@ -657,9 +657,19 @@ export default function ContactsNewPage() {
       if (!response.ok) {
         throw new Error("Failed to verify email");
       }
+
+      const updateResponse = await apiRequest(`/api/contacts/update/${contact.id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          email_verified: true,
+        }),
+      });
+
       return response.json();
     },
     onSuccess: (data, contact) => {
+      
+
       queryClient.setQueryData(["/api/contacts"], (oldData: any) => {
         return {
           ...oldData,
@@ -668,6 +678,9 @@ export default function ContactsNewPage() {
           ),
         };
       });
+
+
+
       toast({
         title: data.isValid ? "Email Verified" : "Email Invalid",
         description: `${contact.email} is ${data.isValid ? "valid" : "invalid"}`,
