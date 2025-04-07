@@ -46,23 +46,21 @@ export function AuthProvider(props: { children: ReactNode }) {
   };
   
   useEffect(() => {
-    // Check if user is already logged in
     const checkAuth = async () => {
       const token = localStorage.getItem("authToken");
       if (token) {
         try {
           await fetchUserProfile();
         } catch (error) {
-          // Invalid token or other error
           localStorage.removeItem("authToken");
           setUser(null);
         }
       }
       setIsLoading(false);
     };
-    
     checkAuth();
   }, []);
+  
   
   const login = async (email: string, password: string) => {
     try {
@@ -96,12 +94,15 @@ export function AuthProvider(props: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem("authToken");
     setUser(null);
-    
+  
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
     });
+  
+    window.location.href = "/login"; // or router.push("/login");
   };
+  
   
   const register = async (userData: any) => {
     try {
