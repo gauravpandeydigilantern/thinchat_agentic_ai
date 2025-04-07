@@ -73,6 +73,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ContactFilters from "./ContactFilters";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -154,6 +155,9 @@ export default function ContactsTable({
 
   // AI Insights state
   const [showAIInsights, setShowAIInsights] = useState(false);
+
+  // State for selected contacts
+  const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
 
   // Filter contacts based on search term
   useEffect(() => {
@@ -265,6 +269,24 @@ export default function ContactsTable({
     a.download = "contacts.csv";
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Select all contacts
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedContacts(contacts.map((contact) => contact.id));
+    } else {
+      setSelectedContacts([]);
+    }
+  };
+
+  // Select individual contact
+  const handleSelectContact = (contactId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedContacts((prev) => [...prev, contactId]);
+    } else {
+      setSelectedContacts((prev) => prev.filter((id) => id !== contactId));
+    }
   };
 
   // AI Insights Component
@@ -593,19 +615,20 @@ export default function ContactsTable({
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     const term = e.target.value.toLowerCase();
-                    const filtered = contacts.filter(contact =>
-                      contact.fullName?.toLowerCase().includes(term) ||
-                      contact.email?.toLowerCase().includes(term) ||
-                      contact.jobTitle?.toLowerCase().includes(term) ||
-                      contact.companyName?.toLowerCase().includes(term) ||
-                      contact.location?.toLowerCase().includes(term)
+                    const filtered = contacts.filter(
+                      (contact) =>
+                        contact.fullName?.toLowerCase().includes(term) ||
+                        contact.email?.toLowerCase().includes(term) ||
+                        contact.jobTitle?.toLowerCase().includes(term) ||
+                        contact.companyName?.toLowerCase().includes(term) ||
+                        contact.location?.toLowerCase().includes(term),
                     );
                     setFilteredContacts(filtered);
                     setCurrentPage(1);
                   }}
                 />
                 {searchTerm && (
-                  <button 
+                  <button
                     onClick={() => {
                       setSearchTerm("");
                       setFilteredContacts(contacts);
@@ -620,7 +643,7 @@ export default function ContactsTable({
                 <Select
                   value="all"
                   onValueChange={(value) => {
-                    const filtered = contacts.filter(contact => {
+                    const filtered = contacts.filter((contact) => {
                       if (value === "all") return true;
                       if (value === "withEmail") return !!contact.email;
                       if (value === "noEmail") return !contact.email;
@@ -760,16 +783,27 @@ export default function ContactsTable({
           ))}
         </div>
       ) : (
-        <div className="w-full overflow-auto rounded-lg border border-gray-200">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50 hover:bg-gray-50">
-                <TableHead className="w-[30px]">
-                  <input type="checkbox" className="rounded border-gray-300" />
+        <div className="relative w-full border rounded-md overflow-hidden">
+          <div className="max-h-[450px] overflow-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background z-10">
+                <TableRow className="bg-gray-50 hover:bg-gray-50">
+                  <TableHead className="w-[50px] sticky left-0 bg-gray-50 z-20">
+                    <Checkbox
+                      checked={selectedContacts.length === contacts.length}
+                      onCheckedChange={handleSelectAll}
+                    aria-label="Select all"
+                  />
                 </TableHead>
+                {visibleColumns.contact.enabled && (
+                  <TableHead className="sticky left-[50px] bg-gray-50 z-20 min-w-[250px]">
+                    Contact
+                  </TableHead>
+                )}
                 {Object.entries(visibleColumns).map(
                   ([key, col]) =>
-                    col.enabled && (
+                    col.enabled &&
+                    key !== "contact" && (
                       <TableHead
                         key={key}
                         className="font-medium text-gray-700"
@@ -787,14 +821,17 @@ export default function ContactsTable({
                   key={contact.id}
                   className="hover:bg-gray-50 border-b border-gray-100"
                 >
-                  <TableCell className="py-3">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
+                  <TableCell className="sticky left-0 bg-white z-10">
+                    <Checkbox
+                      checked={selectedContacts.includes(contact.id)}
+                      onCheckedChange={(checked) =>
+                        handleSelectContact(contact.id, checked as boolean)
+                      }
+                      aria-label={`Select ${contact.fullName}`}
                     />
                   </TableCell>
                   {visibleColumns.contact.enabled && (
-                    <TableCell className="py-3">
+                    <TableCell className="py-3 sticky left-[50px] bg-white z-10">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8 border border-gray-200">
                           <AvatarImage
@@ -869,7 +906,8 @@ export default function ContactsTable({
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-gray-400" />
                         {contact.email ||
-                        (isEmailFinding && findingEmailId === contact.id) ? (                          <div className="flex items-center gap-2">
+                        (isEmailFinding && findingEmailId === contact.id) ? (
+                          <div className="flex items-center gap-2">
                             {isEmailFinding && findingEmailId === contact.id ? (
                               <>
                                 <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
@@ -1204,6 +1242,7 @@ export default function ContactsTable({
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 

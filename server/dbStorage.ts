@@ -54,15 +54,11 @@ export class DbStorage implements IStorage {
   }
 
   async getContactsByUser(userId: number): Promise<Contact[]> {
-      const query = db.select()
-    .from(contacts)
-    .orderBy(desc(contacts.createdAt));
-
-    // if (userId) {
-    //   query.where(eq(contacts.userId, userId));
-    // }
-
-    const result = await query;
+    const result = await db.select()
+      .from(contacts)
+      .where(eq(contacts.userId, userId))
+      .orderBy(desc(contacts.createdAt));
+    
     return result;
   }
 
@@ -72,6 +68,17 @@ export class DbStorage implements IStorage {
   }
 
   async updateContact(id: number, contact: Partial<InsertContact>): Promise<Contact | undefined> {
+    // First check if contact exists and belongs to the correct user if userId is provided
+    if (contact.userId !== undefined) {
+      const existingContact = await db.select()
+        .from(contacts)
+        .where(eq(contacts.id, id))
+        .limit(1);
+      
+      if (existingContact.length === 0) return undefined;
+      if (existingContact[0].userId !== contact.userId) return undefined;
+    }
+    
     const result = await db.update(contacts)
       .set(contact)
       .where(eq(contacts.id, id))
@@ -79,7 +86,18 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async deleteContact(id: number): Promise<boolean> {
+  async deleteContact(id: number, userId?: number): Promise<boolean> {
+    // If userId is provided, ensure the contact belongs to this user
+    if (userId !== undefined) {
+      const existingContact = await db.select()
+        .from(contacts)
+        .where(eq(contacts.id, id))
+        .limit(1);
+      
+      if (existingContact.length === 0) return false;
+      if (existingContact[0].userId !== userId) return false;
+    }
+    
     const result = await db.delete(contacts).where(eq(contacts.id, id));
     // For Postgres, we need to use the rowCount from the returned ExecutionResult
     // @ts-ignore - This is a valid property on the Postgres driver result
@@ -95,7 +113,7 @@ export class DbStorage implements IStorage {
   async getCompaniesByUser(userId: number): Promise<Company[]> {
     const result = await db.select()
       .from(companies)
-      // .where(eq(companies.userId, userId))
+      .where(eq(companies.userId, userId))
       .orderBy(desc(companies.createdAt));
     return result;
   }
@@ -106,6 +124,17 @@ export class DbStorage implements IStorage {
   }
 
   async updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined> {
+    // First check if company exists and belongs to the correct user if userId is provided
+    if (company.userId !== undefined) {
+      const existingCompany = await db.select()
+        .from(companies)
+        .where(eq(companies.id, id))
+        .limit(1);
+      
+      if (existingCompany.length === 0) return undefined;
+      if (existingCompany[0].userId !== company.userId) return undefined;
+    }
+    
     const result = await db.update(companies)
       .set(company)
       .where(eq(companies.id, id))
@@ -113,7 +142,18 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async deleteCompany(id: number): Promise<boolean> {
+  async deleteCompany(id: number, userId?: number): Promise<boolean> {
+    // If userId is provided, ensure the company belongs to this user
+    if (userId !== undefined) {
+      const existingCompany = await db.select()
+        .from(companies)
+        .where(eq(companies.id, id))
+        .limit(1);
+      
+      if (existingCompany.length === 0) return false;
+      if (existingCompany[0].userId !== userId) return false;
+    }
+    
     const result = await db.delete(companies).where(eq(companies.id, id));
     // For Postgres, we need to use the rowCount from the returned ExecutionResult
     // @ts-ignore - This is a valid property on the Postgres driver result
@@ -245,6 +285,21 @@ export class DbStorage implements IStorage {
       .orderBy(desc(contacts.createdAt));
     
     return result;
+  }
+
+  async enrichContact(contactId: number): Promise<Contact | null> {
+    // In a real implementation, this would call an enrichment API
+    // For now, just mark the contact as enriched
+    const contact = await this.getContact(contactId);
+    if (!contact) return null;
+    
+    const enrichedContact = await this.updateContact(contactId, {
+      isEnriched: true,
+      enrichmentDate: new Date(),
+      enrichmentSource: 'demo'
+    });
+    
+    return enrichedContact || null;
   }
 }
 

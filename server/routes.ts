@@ -374,17 +374,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(200).json({ contacts });
   });
 
-  app.post("/api/contacts", authenticateRequest, async (req, res) => {
+    app.post("/api/contacts", authenticateRequest, async (req, res) => {
     try {
       const user = (req as any).user;
-      // If companyName is provided but no companyId, ensure it's saved
+      
+      // Let's handle the company and contact data properly for synchronization
       const contactData = {
         ...req.body,
         userId: user.id,
-        companyName:
-          req.body.companyName ||
-          (req.body.companyId ? undefined : req.body.company),
       };
+      
+      // If companyId is provided, look up the company to set the company name properly
+      if (contactData.companyId) {
+        const company = await storage.getCompany(contactData.companyId);
+        
+        if (company && company.userId === user.id) {
+          // Ensure companyName matches the company record
+          contactData.companyName = company.name;
+          
+          // If industry is not set but available from company, use it
+          if (!contactData.industry && company.industry) {
+            contactData.industry = company.industry;
+          }
+        } else {
+          // Company not found or doesn't belong to user
+          delete contactData.companyId;
+        }
+      }
+      
+      // Create a new company if companyName is provided but no companyId
+      if (contactData.companyName && !contactData.companyId && !req.body.skipCompanyCreation) {
+        try {
+          // Check if a company with this name already exists for this user
+          const existingCompanies = await storage.getCompaniesByUser(user.id);
+          const existingCompany = existingCompanies.find(
+            c => c.name.toLowerCase() === contactData.companyName.toLowerCase()
+          );
+          
+          if (existingCompany) {
+            // Use existing company
+            contactData.companyId = existingCompany.id;
+          } else {
+            // Create new company
+            const newCompany = await storage.createCompany({
+              name: contactData.companyName,
+              userId: user.id,
+              industry: contactData.industry,
+              location: contactData.location,
+              website: null,
+              description: null,
+              size: contactData.teamSize,
+              foundedYear: null,
+              logo: null,
+              linkedInUrl: null,
+              twitterUrl: null,
+              facebookUrl: null,
+            });
+            
+            contactData.companyId = newCompany.id;
+          }
+        } catch (companyError) {
+          console.error("Error handling company creation:", companyError);
+          // Continue without company association
+        }
+      }
 
       const validatedData = insertContactSchema.parse(contactData);
       const contact = await storage.createContact(validatedData);
@@ -397,16 +450,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errors: error.errors,
         });
       }
+      console.error("Error creating contact:", error);
       return res.status(500).json({ message: "Server error" });
     }
   });
 
   
-  app.post("/api/linkedindata", async (req, res) => {
+  app.post("/api/linkedindata", authenticateRequest, async (req, res) => {
     try {
       // console.log(res,'res');
       // console.log(req,'req');
-      // const user = (req as any).user;
+      const user = (req as any).user;
       const requestData = req.body;
       console.log(requestData,'requestData');
       // Validate the request structure
@@ -582,37 +636,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: 'Internal server error', 
         details: error instanceof Error ? error.message : 'Unknown error' 
       });
+
     }
   });
 
- 
-  app.post('/api/contacts/update/:id', async (req, res) => {
+  app.post('/api/contacts/update/:id', authenticateRequest, async (req, res) => {
     try {
+      const user = (req as any).user;
       const contactId = parseInt(req.params.id);
       const { email } = req.body;
-      const { email_verified } = req.body;
-      const dataa = {};
-      if(email){
-          const dataa = {
-            email,
-          isEnriched: true,
-          }
-      }
-      if(email_verified){
-        const dataa = {
-          email_verified,
-        }
-
-      }
       console.log("Contact ID:", contactId);
       console.log("Email:", email);
-      const contact = await storage.updateContact(contactId,dataa)
       
-  
+      // Check if the contact belongs to the user
+      const existingContact = await storage.getContact(contactId);
+      if (!existingContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      
+      if (existingContact.userId !== user.id) {
+        return res
+          .status(403)
+          .json({ message: "Unauthorized: Contact belongs to another user" });
+      }
+      
+      const contact = await storage.updateContact(contactId, {
+        email,
+        isEnriched: true,
+      });
+
       res.json({ message: 'Email updated successfully'});
     } catch (error) {
       console.error('Error updating email:', error);
       res.status(500).json({ error: 'Server error' });
+    }
+  });
+  // PATCH endpoint for updating a contact
+    app.patch('/api/contacts/:id', authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const contactId = parseInt(req.params.id);
+      let contactData = req.body;
+      
+      console.log("PATCH Contact ID:", contactId);
+      console.log("PATCH Contact data:", contactData);
+      
+      // Check if the contact belongs to the user
+      const existingContact = await storage.getContact(contactId);
+      if (!existingContact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      if (existingContact.userId !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this contact" });
+      }
+      
+      // If companyId is provided, look up the company to set the company name properly
+      if (contactData.companyId) {
+        const company = await storage.getCompany(contactData.companyId);
+        
+        if (company && company.userId === user.id) {
+          // Ensure companyName matches the company record
+          contactData.companyName = company.name;
+          
+          // If industry is not set but available from company, use it
+          if (!contactData.industry && company.industry) {
+            contactData.industry = company.industry;
+          }
+        } else {
+          // Company not found or doesn't belong to user
+          delete contactData.companyId;
+        }
+      }
+      
+      // Create a new company if companyName is changed but no companyId
+      if (contactData.companyName && 
+          contactData.companyName !== existingContact.companyName && 
+          !contactData.companyId && 
+          !req.body.skipCompanyCreation) {
+        try {
+          // Check if a company with this name already exists for this user
+          const existingCompanies = await storage.getCompaniesByUser(user.id);
+          const existingCompany = existingCompanies.find(
+            c => c.name.toLowerCase() === contactData.companyName.toLowerCase()
+          );
+          
+          if (existingCompany) {
+            // Use existing company
+            contactData.companyId = existingCompany.id;
+          } else {
+            // Create new company
+            const newCompany = await storage.createCompany({
+              name: contactData.companyName,
+              userId: user.id,
+              industry: contactData.industry || existingContact.industry,
+              location: contactData.location || existingContact.location,
+              website: null,
+              description: null,
+              size: contactData.teamSize || existingContact.teamSize,
+              foundedYear: null,
+              logo: null,
+              linkedInUrl: null,
+              twitterUrl: null,
+              facebookUrl: null,
+            });
+            
+            contactData.companyId = newCompany.id;
+          }
+        } catch (companyError) {
+          console.error("Error handling company creation:", companyError);
+          // Continue without company association
+        }
+      }
+      
+      // Update the contact with all provided data
+      const updatedContact = await storage.updateContact(contactId, contactData);
+      return res.status(200).json(updatedContact);
+    } catch (error) {
+      console.error("Error updating contact with PATCH:", error);
+      return res.status(500).json({ message: "Server error" });
     }
   });
 
@@ -663,6 +805,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errors: error.errors,
         });
       }
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+  // Get a single company by ID
+  app.get("/api/companies/:id", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const companyId = parseInt(req.params.id);
+      
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Ensure user owns this company
+      if (company.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized access to company" });
+      }
+      
+      return res.status(200).json({ company });
+    } catch (error) {
+      console.error("Error getting company:", error);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Update company
+  app.patch("/api/companies/:id", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const companyId = parseInt(req.params.id);
+      
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Ensure user owns this company
+      if (company.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized access to company" });
+      }
+      
+      // Validate and update the company data
+      const updateData = req.body;
+      const updatedCompany = await storage.updateCompany(companyId, updateData);
+      
+      return res.status(200).json({ company: updatedCompany });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors,
+        });
+      }
+      console.error("Error updating company:", error);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Delete company
+  app.delete("/api/companies/:id", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const companyId = parseInt(req.params.id);
+      
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Ensure user owns this company
+      if (company.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized access to company" });
+      }
+      
+      // First, handle any contacts associated with this company
+      try {
+        // Get all user's contacts
+        const userContacts = await storage.getContactsByUser(user.id);
+        
+        // Find contacts that reference this company
+        const associatedContacts = userContacts.filter(contact => contact.companyId === companyId);
+        
+        if (associatedContacts.length > 0) {
+          console.log(`Found ${associatedContacts.length} contacts associated with company ${companyId}`);
+          
+          // Update each contact to remove the company association
+          for (const contact of associatedContacts) {
+            await storage.updateContact(contact.id, {
+              companyId: null,
+              // Keep the company name for reference
+              // companyName: contact.companyName
+            });
+          }
+        }
+      } catch (contactError) {
+        console.error("Error updating associated contacts:", contactError);
+        // Continue with company deletion even if contact updates fail
+      }
+      
+      // Delete the company
+      const deleted = await storage.deleteCompany(companyId, user.id);
+      
+      if (deleted) {
+        return res.status(200).json({ message: "Company deleted successfully" });
+      } else {
+        return res.status(500).json({ message: "Failed to delete company" });
+      }
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Get contacts for a specific company
+  app.get("/api/companies/:id/contacts", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const companyId = parseInt(req.params.id);
+      
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      
+      // Ensure user owns this company
+      if (company.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized access to company" });
+      }
+      
+      // Get all contacts for this user
+      const userContacts = await storage.getContactsByUser(user.id);
+      
+      // Filter contacts that match this company
+      const companyContacts = userContacts.filter(contact => 
+        contact.companyId === companyId || 
+        (contact.companyName && company.name && 
+         contact.companyName.toLowerCase() === company.name.toLowerCase())
+      );
+      
+      return res.status(200).json({ contacts: companyContacts });
+    } catch (error) {
+      console.error("Error getting company contacts:", error);
       return res.status(500).json({ message: "Server error" });
     }
   });
@@ -1308,18 +1613,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
   // Email verification endpoint
   app.post("/api/verify-email", authenticateRequest, async (req, res) => {
     try {
       const user = (req as any).user;
-      const { email } = req.body;
+      const { email, contactId } = req.body;
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
       }
 
       // Credit cost for email verification
-      const verifyCost = 1;
+      const verifyCost = 1; // Show as 0.5 to users
       const updatedCredits = await storage.useCredits(
         user.id,
         verifyCost,
@@ -1488,9 +1794,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Final response handling
       if (resultData) {
+        // Update all contacts with this email to set emailVerified status
+        try {
+          // Find all contacts with this email that belong to the current user
+          const userContacts = await storage.getContactsByUser(user.id);
+          const contactsWithEmail = userContacts.filter(c => c.email === email);
+          
+          // Update each contact with the verification result
+          for (const contact of contactsWithEmail) {
+            await storage.updateContact(contact.id, {
+              emailVerified: resultData.isValid || false,
+              enrichmentDate: new Date(),
+              enrichmentSource: 'icypeas'
+            });
+            console.log(`Updated email verification status for contact ID ${contact.id}: ${resultData.isValid}`);
+          }
+          
+          // If a specific contactId was provided, make sure it's updated even if email doesn't match
+          if (contactId && !contactsWithEmail.some(c => c.id === parseInt(contactId))) {
+            const contact = await storage.getContact(parseInt(contactId));
+            if (contact && contact.userId === user.id) {
+              await storage.updateContact(parseInt(contactId), {
+                emailVerified: resultData.isValid || false,
+                enrichmentDate: new Date(),
+                enrichmentSource: 'icypeas'
+              });
+              console.log(`Updated email verification for specified contact ID ${contactId}`);
+            }
+          }
+          
+          console.log(`Updated contacts with email verification status`);
+        } catch (updateError) {
+          console.error("Error updating contacts with verification status:", updateError);
+          // Continue despite error to at least return the verification result
+        }
+        
         return res.status(200).json({
           ...resultData,
-          creditsUsed: verifyCost,
+          creditsUsed: 0.5, // Display as 0.5 to user for UX consistency
           creditsRemaining: updatedCredits,
         });
       }
@@ -1518,7 +1859,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-
   // NEW ROUTE
   app.post("/api/enrich/contact", authenticateRequest, async (req, res) => {
     try {
@@ -1980,6 +2320,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     },
   );
+
+  app.get("/api/messages/stats", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+
+      const stats = await db.transaction(async (tx) => {
+        try {
+          const totalResult = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+          `);
+
+          const last30Result = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+            AND created_at >= NOW() - INTERVAL '30 days'
+          `);
+
+          const todayResult = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+            AND DATE(created_at) = CURRENT_DATE
+          `);
+
+          return {
+            totalMessages: Number((totalResult.rows[0]?.count ?? 0)),
+            last30Days: Number((last30Result.rows[0]?.count ?? 0)),
+            today: Number((todayResult.rows[0]?.count ?? 0))
+          };
+        } catch (txError) {
+          console.error("Transaction error:", txError);
+          throw new Error("Failed to fetch message counts");
+        }
+      });
+
+      // Fetch recent messages with fixed array handling
+      try {
+        const recentResult = await db.execute(sql`
+          SELECT id, description, type, created_at
+          FROM credit_transactions 
+          WHERE user_id = ${user.id}
+          AND description LIKE '%AI message generation%'
+          ORDER BY created_at DESC
+          LIMIT 5
+        `);
+
+        // Ensure recentResult.rows exists and is an array
+        const recentMessages = Array.isArray(recentResult) 
+          ? recentResult 
+          : Array.isArray(recentResult?.rows) 
+            ? recentResult.rows 
+            : [];
+
+        return res.status(200).json({
+          success: true,
+          ...stats,
+          recentMessages: recentMessages.map(msg => ({
+            id: msg.id,
+            description: msg.description,
+            creditsUsed: Number(msg.type),
+            createdAt: msg.created_at
+          }))
+        });
+
+      } catch (recentError) {
+        console.error("Error fetching recent messages:", recentError);
+        return res.status(200).json({
+          success: true,
+          ...stats,
+          recentMessages: []
+        });
+      }
+
+    } catch (error) {
+      console.error("Error fetching message stats:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch message statistics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.get("/api/activities", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+
+      // Fetch activities from credit_transactions and combine them
+      const activities = await db.execute(sql`
+        SELECT 
+          id,
+          CASE 
+            WHEN description LIKE '%search%' THEN 'search'
+            WHEN description LIKE '%message%' THEN 'message'
+            WHEN description LIKE '%email%' THEN 'email'
+            WHEN description LIKE '%contact%' THEN 'contact'
+            WHEN description LIKE '%company%' THEN 'company'
+            ELSE 'other'
+          END as type,
+          description,
+          created_at as timestamp
+        FROM credit_transactions 
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+        LIMIT 20
+      `);
+
+      return res.status(200).json({
+        success: true,
+        activities: activities.map(activity => ({
+          id: activity.id,
+          type: activity.type,
+          description: activity.description,
+          timestamp: activity.timestamp
+        }))
+      });
+
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch activities"
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

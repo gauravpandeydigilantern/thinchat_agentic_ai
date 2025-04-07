@@ -72,7 +72,8 @@ export default function AiWriterPage() {
   const [emailSubject, setEmailSubject] = useState<string>("");
   const [showEmailDialog, setShowEmailDialog] = useState<boolean>(false);
   const [showLinkedInDialog, setShowLinkedInDialog] = useState<boolean>(false);
-  
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Parse URL parameters to pre-select contact if coming from contacts page
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -130,10 +131,6 @@ export default function AiWriterPage() {
   // Generate AI message mutation
   const generateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedContact) {
-        throw new Error("Please select a contact");
-      }
-      
       return apiRequest("/api/ai-writer/generate", {
         method: "POST",
         body: JSON.stringify({
@@ -149,13 +146,6 @@ export default function AiWriterPage() {
       toast({
         title: "Message generated",
         description: `Message generated successfully (${data.creditsUsed} credits used)`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate message",
-        variant: "destructive"
       });
     }
   });
@@ -266,6 +256,13 @@ export default function AiWriterPage() {
   const selectedContactDetails = contactsData?.contacts?.find(
     (contact: any) => contact.id === selectedContact
   );
+
+  // Filter contacts based on search query
+  const filteredContacts = contactsData?.contacts?.filter((contact: any) => 
+    contact.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.companyName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   // Get credit info
   const credits = creditsData?.credits || user?.credits || 0;
@@ -292,22 +289,61 @@ export default function AiWriterPage() {
                 value={selectedContact?.toString() || ""}
                 onValueChange={(value) => setSelectedContact(parseInt(value))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a contact" />
                 </SelectTrigger>
-                <SelectContent>
-                  {isLoadingContacts ? (
-                    <div className="flex items-center justify-center py-2">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading...
-                    </div>
-                  ) : (
-                    contactsData?.contacts?.map((contact: any) => (
-                      <SelectItem key={contact.id} value={contact.id.toString()}>
-                        {contact.fullName} {contact.jobTitle ? `- ${contact.jobTitle}` : ""}
-                      </SelectItem>
-                    ))
-                  )}
+                <SelectContent position="popper" className="w-full">
+                  <div className="px-3 py-2 sticky top-0 bg-white border-b z-10">
+                    <Input
+                      key="contact-search" // Add key to ensure proper mounting
+                      placeholder="Search contacts..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSearchQuery(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        // Prevent select from closing on key press
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      className="h-8"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {isLoadingContacts ? (
+                      <div className="flex items-center justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Loading...
+                      </div>
+                    ) : filteredContacts?.length === 0 ? (
+                      <div className="py-2 px-3 text-sm text-neutral-500">
+                        No contacts found
+                      </div>
+                    ) : (
+                      filteredContacts?.map((contact: any) => (
+                        <SelectItem 
+                          key={contact.id} 
+                          value={contact.id.toString()}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex flex-col">
+                            <div>{contact.fullName}</div>
+                            {contact.jobTitle && (
+                              <div className="text-xs text-neutral-500">{contact.jobTitle}</div>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </div>
                 </SelectContent>
               </Select>
               
@@ -341,8 +377,8 @@ export default function AiWriterPage() {
                     key={template.id}
                     className={`p-3 rounded-md border cursor-pointer transition-colors flex items-start space-x-3 ${
                       messageTemplate === template.id
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-neutral-200 hover:border-primary-200 hover:bg-neutral-50"
+                        ? "border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/10"
+                        : "border-neutral-200 hover:border-blue-200 hover:bg-neutral-50"
                     }`}
                     onClick={() => setMessageTemplate(template.id)}
                   >
