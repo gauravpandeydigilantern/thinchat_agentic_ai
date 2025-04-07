@@ -19,7 +19,7 @@ export function Header({ toggleSidebar }: { toggleSidebar: () => void }) {
   };
 
   return (
-    <header className="bg-white border-b border-neutral-200 fixed w-full z-10 shadow-sm">
+    <header className="bg-white border-b border-neutral-200 fixed w-full z-[80] shadow-sm">
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center">
           <button

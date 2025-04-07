@@ -19,14 +19,14 @@ export interface IStorage {
   getContactsByUser(userId: number): Promise<Contact[]>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, contact: Partial<InsertContact>): Promise<Contact | undefined>;
-  deleteContact(id: number): Promise<boolean>;
+  deleteContact(id: number, userId?: number): Promise<boolean>;
 
   // Company operations
   getCompany(id: number): Promise<Company | undefined>;
   getCompaniesByUser(userId: number): Promise<Company[]>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
-  deleteCompany(id: number): Promise<boolean>;
+  deleteCompany(id: number, userId?: number): Promise<boolean>;
 
   // Credit operations
   getCreditBalance(userId: number): Promise<number>;

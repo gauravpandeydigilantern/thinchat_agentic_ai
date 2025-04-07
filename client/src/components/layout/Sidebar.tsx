@@ -56,7 +56,7 @@ export function Sidebar({ isOpen }: { isOpen: boolean }) {
 
   return (
     <aside className={cn(
-      "fixed inset-y-0 left-0 pt-1 w-64 bg-white border-r border-neutral-200 transform transition-transform duration-300 ease-in-out z-10",
+      "fixed inset-y-0 left-0 pt-1 w-64 bg-white border-r border-neutral-200 transform transition-transform duration-300 ease-in-out z-[100]",
       isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
     )}>
       <div className="h-full flex flex-col">

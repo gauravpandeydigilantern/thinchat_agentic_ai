@@ -73,6 +73,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ContactFilters from "./ContactFilters";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -154,6 +155,9 @@ export default function ContactsTable({
 
   // AI Insights state
   const [showAIInsights, setShowAIInsights] = useState(false);
+
+  // State for selected contacts
+  const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
 
   // Filter contacts based on search term
   useEffect(() => {
@@ -265,6 +269,24 @@ export default function ContactsTable({
     a.download = "contacts.csv";
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Select all contacts
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedContacts(filteredContacts.map((contact) => contact.id));
+    } else {
+      setSelectedContacts([]);
+    }
+  };
+
+  // Select individual contact
+  const handleSelectContact = (contactId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedContacts((prev) => [...prev, contactId]);
+    } else {
+      setSelectedContacts((prev) => prev.filter((id) => id !== contactId));
+    }
   };
 
   // AI Insights Component
@@ -760,450 +782,473 @@ export default function ContactsTable({
           ))}
         </div>
       ) : (
-        <div className="w-full overflow-auto rounded-lg border border-gray-200">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50 hover:bg-gray-50">
-                <TableHead className="w-[30px]">
-                  <input type="checkbox" className="rounded border-gray-300" />
-                </TableHead>
-                {Object.entries(visibleColumns).map(
-                  ([key, col]) =>
-                    col.enabled && (
-                      <TableHead
-                        key={key}
-                        className="font-medium text-gray-700"
-                      >
-                        {col.label}
-                      </TableHead>
-                    ),
-                )}
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedContacts.map((contact) => (
-                <TableRow
-                  key={contact.id}
-                  className="hover:bg-gray-50 border-b border-gray-100"
-                >
-                  <TableCell className="py-3">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
+        <div className="w-full rounded-lg border border-gray-200">
+          <div className="relative overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50 hover:bg-gray-50">
+                  <TableHead 
+                    className="w-[80px] sticky-header sticky-column left-0 bg-gray-50 z-40 border-gray-200 table-shadow"
+                  >
+                    <Checkbox
+                      checked={selectedContacts.length === filteredContacts.length}
+                      onCheckedChange={handleSelectAll}
+                      aria-label="Select all"
                     />
-                  </TableCell>
+                  </TableHead>
                   {visibleColumns.contact.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8 border border-gray-200">
-                          <AvatarImage
-                            src={contact.profileImageUrl || ""}
-                            alt={contact.fullName}
-                          />
-                          <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
-                            {contact.fullName
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("") || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="font-medium text-gray-900">
-                          {contact.fullName}
-                        </div>
-                      </div>
-                    </TableCell>
+                    <TableHead 
+                      className="sticky-header sticky-column left-[50px] bg-gray-50 z-40 min-w-[250px] border-r border-gray-200 table-shadow"
+                    >
+                      Contact
+                    </TableHead>
                   )}
-                  {visibleColumns.title.enabled && (
-                    <TableCell className="py-3 text-gray-600">
-                      {contact.jobTitle || "—"}
-                    </TableCell>
+                  {Object.entries(visibleColumns).map(
+                    ([key, col]) =>
+                      col.enabled &&
+                      key !== "contact" && (
+                        <TableHead
+                          key={key}
+                          className="sticky-header font-medium text-gray-700 bg-gray-50 z-30"
+                        >
+                          {col.label}
+                        </TableHead>
+                      ),
                   )}
-                  {visibleColumns.company.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Building className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600">
-                          {companies.find((c) => c.id === contact.companyId)
-                            ?.name ||
-                            contact.companyName ||
-                            "—"}
-                        </span>
-                      </div>
+                  <TableHead className="sticky-header text-right bg-gray-50 z-30">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {paginatedContacts.map((contact) => (
+                  <TableRow key={contact.id} className="hover:bg-gray-50">
+                    <TableCell 
+                      className="sticky-column left-0 bg-white z-20 border-gray-200 table-shadow table-checkbox-cell"
+                    >
+                      <Checkbox
+                        checked={selectedContacts.includes(contact.id)}
+                        onCheckedChange={(checked) =>
+                          handleSelectContact(contact.id, checked as boolean)
+                        }
+                        aria-label={`Select ${contact.fullName}`}
+                      />
                     </TableCell>
-                  )}
-                  {visibleColumns.website.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-gray-400" />
-                        {contact.website ? (
-                          <a
-                            href={contact.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline truncate max-w-[200px]"
-                          >
-                            {contact.website.replace(
-                              /^https?:\/\/(www\.)?/,
-                              "",
-                            )}
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.companyEmails.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[200px]">
-                          {contact.companyEmail || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.contactEmails.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-gray-400" />
-                        {contact.email ||
-                        (isEmailFinding && findingEmailId === contact.id) ? (                          <div className="flex items-center gap-2">
-                            {isEmailFinding && findingEmailId === contact.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
-                                <span className="text-gray-600">
-                                  {contact.emailStatus
-                                    ? getStatusMessage(contact.emailStatus)
-                                    : "Finding..."}
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-gray-600 truncate max-w-[150px]">
-                                  {contact.email}
-                                </span>
-                                {contact.emailStatus && (
-                                  <span
-                                    className={`text-xs px-1.5 py-0.5 rounded ${getStatusColor(contact.emailStatus)}`}
-                                  >
-                                    {getStatusMessage(contact.emailStatus)}
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onEmailFind?.(contact)}
-                            disabled={!contact.fullName || isEmailFinding}
-                            className="text-purple-600 hover:text-purple-700 p-0 h-auto font-normal text-xs"
-                          >
-                            <Search className="mr-1 h-3 w-3" />
-                            Find Email
-                            <span className="ml-1 text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
-                              1 credit
-                            </span>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.emailVerified.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        {contact.emailVerified ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-green-50 text-green-700 border-green-200"
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Verified
-                          </Badge>
-                        ) : contact.email ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onVerifyEmail?.(contact)}
-                            disabled={
-                              !contact.email ||
-                              !onVerifyEmail ||
-                              (isVerifyingEmail &&
-                                verifyingEmailId !== null &&
-                                verifyingEmailId === contact.id)
-                            }
-                            className="h-7 text-xs"
-                          >
-                            {isVerifyingEmail &&
-                            verifyingEmailId !== null &&
-                            verifyingEmailId === contact.id ? (
-                              <>
-                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                Verifying...
-                              </>
-                            ) : (
-                              "Verify Email"
-                            )}
-                          </Button>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.companyPhones.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[150px]">
-                          {contact.companyPhone || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.contactPhones.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[150px]">
-                          {contact.phone || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.contactSocials.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        {contact.linkedInUrl ? (
-                          <a
-                            href={contact.linkedInUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600"
-                          >
-                            <Linkedin className="w-4 h-4" />
-                          </a>
-                        ) : null}
-                        {contact.twitterUrl ? (
-                          <a
-                            href={contact.twitterUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400"
-                          >
-                            <Twitter className="w-4 h-4" />
-                          </a>
-                        ) : null}
-                        {!contact.linkedInUrl && !contact.twitterUrl && (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.industry.enabled && (
-                    <TableCell className="py-3 text-gray-600">
-                      {contact.industry || "—"}
-                    </TableCell>
-                  )}
-                  {visibleColumns.contactLocation.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[150px]">
-                          {contact.location || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.seniority.enabled && (
-                    <TableCell className="py-3 text-gray-600">
-                      {contact.seniority || "—"}
-                    </TableCell>
-                  )}
-                  {visibleColumns.department.enabled && (
-                    <TableCell className="py-3 text-gray-600">
-                      {contact.department || "—"}
-                    </TableCell>
-                  )}
-                  {visibleColumns.companyLocation.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[150px]">
-                          {contact.companyLocation || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.employeeSize.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600">
-                          {contact.employeeSize || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.companySocials.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        {contact.companySocials?.linkedin ? (
-                          <a
-                            href={contact.companySocials.linkedin}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600"
-                          >
-                            <Linkedin className="w-4 h-4" />
-                          </a>
-                        ) : null}
-                        {contact.companySocials?.twitter ? (
-                          <a
-                            href={contact.companySocials.twitter}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-400"
-                          >
-                            <Twitter className="w-4 h-4" />
-                          </a>
-                        ) : null}
-                        {contact.companySocials?.facebook ? (
-                          <a
-                            href={contact.companySocials.facebook}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600"
-                          >
-                            <Facebook className="w-4 h-4" />
-                          </a>
-                        ) : null}
-                        {!contact.companySocials?.linkedin &&
-                          !contact.companySocials?.twitter &&
-                          !contact.companySocials?.facebook && (
-                            <span className="text-gray-400">—</span>
-                          )}
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.aiWriter.enabled && (
-                    <TableCell className="py-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAIWriter(contact)}
-                        className="h-8 w-8 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                    {visibleColumns.contact.enabled && (
+                      <TableCell 
+                        className="sticky-column left-[50px] bg-white z-10 table-shadow border-r border-gray-200"
                       >
-                        <MessageSquare className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  )}
-                  {visibleColumns.dateResearched.enabled && (
-                    <TableCell className="py-3">
-                      {contact.dateResearched ? (
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8 border border-gray-200">
+                            <AvatarImage
+                              src={contact.profileImageUrl || ""}
+                              alt={contact.fullName}
+                            />
+                            <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                              {contact.fullName
+                                ?.split(" ")
+                                .map((n) => n[0])
+                                .join("") || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="font-medium text-gray-900">
+                            {contact.fullName}
+                          </div>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.title.enabled && (
+                      <TableCell className="py-3 text-gray-600">
+                        {contact.jobTitle || "—"}
+                      </TableCell>
+                    )}
+                    {visibleColumns.company.enabled && (
+                      <TableCell className="py-3">
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <Building className="w-4 h-4 text-gray-400" />
                           <span className="text-gray-600">
-                            {new Date(
-                              contact.dateResearched,
-                            ).toLocaleDateString()}
+                            {companies.find((c) => c.id === contact.companyId)
+                              ?.name ||
+                              contact.companyName ||
+                              "—"}
                           </span>
                         </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                  )}
-                  {visibleColumns.lists.enabled && (
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <List className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600 truncate max-w-[150px]">
-                          {contact.lists?.join(", ") || "—"}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
-                  {visibleColumns.crm.enabled && (
-                    <TableCell className="py-3">
-                      {contact.crmSource ? (
-                        <Badge
-                          variant="outline"
-                          className="bg-blue-50 text-blue-700 border-blue-200"
-                        >
-                          {contact.crmSource}
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                  )}
-                  <TableCell className="py-3 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem
-                          onClick={() => onViewDetails(contact)}
-                        >
-                          <FileText className="w-4 h-4 mr-2 text-gray-500" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onEditContact(contact)}
-                        >
-                          <Pencil className="w-4 h-4 mr-2 text-gray-500" />
-                          Edit
-                        </DropdownMenuItem>
-                        {onEnrichContact && (
-                          <DropdownMenuItem
-                            onClick={() => onEnrichContact(contact)}
-                          >
-                            <Sparkles className="w-4 h-4 mr-2 text-amber-500" />
-                            Enrich Data
-                          </DropdownMenuItem>
-                        )}
-                        {onSendEmail && contact.email && (
-                          <DropdownMenuItem
-                            onClick={() => onSendEmail(contact)}
-                          >
-                            <Mail className="w-4 h-4 mr-2 text-blue-500" />
-                            Send Email
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
+                      </TableCell>
+                    )}
+                    {visibleColumns.website.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-gray-400" />
+                          {contact.website ? (
+                            <a
+                              href={contact.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline truncate max-w-[200px]"
+                            >
+                              {contact.website.replace(
+                                /^https?:\/\/(www\.)?/,
+                                "",
+                              )}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.companyEmails.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[200px]">
+                            {contact.companyEmail || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.contactEmails.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          {contact.email ||
+                          (isEmailFinding && findingEmailId === contact.id) ? (                            <div className="flex items-center gap-2">
+                              {isEmailFinding && findingEmailId === contact.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                                  <span className="text-gray-600">
+                                    {contact.emailStatus
+                                      ? getStatusMessage(contact.emailStatus)
+                                      : "Finding..."}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-gray-600 truncate max-w-[150px]">
+                                    {contact.email}
+                                  </span>
+                                  {contact.emailStatus && (
+                                    <span
+                                      className={`text-xs px-1.5 py-0.5 rounded ${getStatusColor(contact.emailStatus)}`}
+                                    >
+                                      {getStatusMessage(contact.emailStatus)}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onEmailFind?.(contact)}
+                              disabled={!contact.fullName || isEmailFinding}
+                              className="text-purple-600 hover:text-purple-700 p-0 h-auto font-normal text-xs"
+                            >
+                              <Search className="mr-1 h-3 w-3" />
+                              Find Email
+                              <span className="ml-1 text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded">
+                                1 credit
+                              </span>
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.emailVerified.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          {contact.emailVerified ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700 border-green-200"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verified
+                            </Badge>
+                          ) : contact.email ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onVerifyEmail?.(contact)}
+                              disabled={
+                                !contact.email ||
+                                !onVerifyEmail ||
+                                (isVerifyingEmail &&
+                                  verifyingEmailId !== null &&
+                                  verifyingEmailId === contact.id)
+                              }
+                              className="h-7 text-xs"
+                            >
+                              {isVerifyingEmail &&
+                              verifyingEmailId !== null &&
+                              verifyingEmailId === contact.id ? (
+                                <>
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  Verifying...
+                                </>
+                              ) : (
+                                "Verify Email"
+                              )}
+                            </Button>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.companyPhones.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[150px]">
+                            {contact.companyPhone || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.contactPhones.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[150px]">
+                            {contact.phone || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.contactSocials.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          {contact.linkedInUrl ? (
+                            <a
+                              href={contact.linkedInUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600"
+                            >
+                              <Linkedin className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                          {contact.twitterUrl ? (
+                            <a
+                              href={contact.twitterUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400"
+                            >
+                              <Twitter className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                          {!contact.linkedInUrl && !contact.twitterUrl && (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.industry.enabled && (
+                      <TableCell className="py-3 text-gray-600">
+                        {contact.industry || "—"}
+                      </TableCell>
+                    )}
+                    {visibleColumns.contactLocation.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[150px]">
+                            {contact.location || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.seniority.enabled && (
+                      <TableCell className="py-3 text-gray-600">
+                        {contact.seniority || "—"}
+                      </TableCell>
+                    )}
+                    {visibleColumns.department.enabled && (
+                      <TableCell className="py-3 text-gray-600">
+                        {contact.department || "—"}
+                      </TableCell>
+                    )}
+                    {visibleColumns.companyLocation.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[150px]">
+                            {contact.companyLocation || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.employeeSize.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600">
+                            {contact.employeeSize || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.companySocials.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          {contact.companySocials?.linkedin ? (
+                            <a
+                              href={contact.companySocials.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600"
+                            >
+                              <Linkedin className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                          {contact.companySocials?.twitter ? (
+                            <a
+                              href={contact.companySocials.twitter}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400"
+                            >
+                              <Twitter className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                          {contact.companySocials?.facebook ? (
+                            <a
+                              href={contact.companySocials.facebook}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600"
+                            >
+                              <Facebook className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                          {!contact.companySocials?.linkedin &&
+                            !contact.companySocials?.twitter &&
+                            !contact.companySocials?.facebook && (
+                              <span className="text-gray-400">—</span>
+                            )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.aiWriter.enabled && (
+                      <TableCell className="py-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleAIWriter(contact)}
+                          className="h-8 w-8 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                         >
-                          <MessageSquare className="w-4 h-4 mr-2 text-purple-500" />
-                          AI Writer
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleCRMExport(contact)}
-                        >
-                          <Upload className="w-4 h-4 mr-2 text-green-500" />
-                          Export to CRM
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onDeleteContact(contact)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                          <MessageSquare className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    )}
+                    {visibleColumns.dateResearched.enabled && (
+                      <TableCell className="py-3">
+                        {contact.dateResearched ? (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-600">
+                              {new Date(
+                                contact.dateResearched,
+                              ).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.lists.enabled && (
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <List className="w-4 h-4 text-gray-400" />
+                          <span className="text-gray-600 truncate max-w-[150px]">
+                            {contact.lists?.join(", ") || "—"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.crm.enabled && (
+                      <TableCell className="py-3">
+                        {contact.crmSource ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-blue-50 text-blue-700 border-blue-200"
+                          >
+                            {contact.crmSource}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    <TableCell className="py-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem
+                            onClick={() => onViewDetails(contact)}
+                          >
+                            <FileText className="w-4 h-4 mr-2 text-gray-500" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onEditContact(contact)}
+                          >
+                            <Pencil className="w-4 h-4 mr-2 text-gray-500" />
+                            Edit
+                          </DropdownMenuItem>
+                          {onEnrichContact && (
+                            <DropdownMenuItem
+                              onClick={() => onEnrichContact(contact)}
+                            >
+                              <Sparkles className="w-4 h-4 mr-2 text-amber-500" />
+                              Enrich Data
+                            </DropdownMenuItem>
+                          )}
+                          {onSendEmail && contact.email && (
+                            <DropdownMenuItem
+                              onClick={() => onSendEmail(contact)}
+                            >
+                              <Mail className="w-4 h-4 mr-2 text-blue-500" />
+                              Send Email
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() => handleAIWriter(contact)}
+                          >
+                            <MessageSquare className="w-4 h-4 mr-2 text-purple-500" />
+                            AI Writer
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleCRMExport(contact)}
+                          >
+                            <Upload className="w-4 h-4 mr-2 text-green-500" />
+                            Export to CRM
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onDeleteContact(contact)}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

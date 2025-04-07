@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { dbStorage as storage } from "./dbStorage";
 import { db } from "./db";
 import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 // const winston = require('winston');
 import {
   insertUserSchema,
@@ -501,6 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 new Date(item.extracted_at || item.extractedAt) : null,
               timestamp: item.timestamp ? 
                 (typeof item.timestamp === 'number' ? new Date(item.timestamp) : new Date(item.timestamp)) : null,
+              account_id: null, // Add account_id with default value
               // userId: user.id
             };
             
@@ -724,8 +726,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // In a real implementation, this would call an external service
         // For this demo, we'll generate a fake email
-        const companyDomain = contact.companyId
-          ? (await storage.getCompany(contact.companyId))?.website?.split(
+        const companyDomain = contact.account_id
+          ? (await storage.getCompany(contact.account_id))?.website?.split(
               "https://",
             )[1] || "example.com"
           : "example.com";
@@ -1969,6 +1971,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     },
   );
+
+  app.get("/api/messages/stats", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+
+      const stats = await db.transaction(async (tx) => {
+        try {
+          const totalResult = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+          `);
+
+          const last30Result = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+            AND created_at >= NOW() - INTERVAL '30 days'
+          `);
+
+          const todayResult = await tx.execute(sql`
+            SELECT COUNT(*) as count 
+            FROM credit_transactions 
+            WHERE user_id = ${user.id} 
+            AND description LIKE '%AI message generation%'
+            AND DATE(created_at) = CURRENT_DATE
+          `);
+
+          return {
+            totalMessages: Number((totalResult.rows[0]?.count ?? 0)),
+            last30Days: Number((last30Result.rows[0]?.count ?? 0)),
+            today: Number((todayResult.rows[0]?.count ?? 0))
+          };
+        } catch (txError) {
+          console.error("Transaction error:", txError);
+          throw new Error("Failed to fetch message counts");
+        }
+      });
+
+      // Fetch recent messages with fixed array handling
+      try {
+        const recentResult = await db.execute(sql`
+          SELECT id, description, type, created_at
+          FROM credit_transactions 
+          WHERE user_id = ${user.id}
+          AND description LIKE '%AI message generation%'
+          ORDER BY created_at DESC
+          LIMIT 5
+        `);
+
+        // Ensure recentResult.rows exists and is an array
+        const recentMessages = Array.isArray(recentResult) 
+          ? recentResult 
+          : Array.isArray(recentResult?.rows) 
+            ? recentResult.rows 
+            : [];
+
+        return res.status(200).json({
+          success: true,
+          ...stats,
+          recentMessages: recentMessages.map(msg => ({
+            id: msg.id,
+            description: msg.description,
+            creditsUsed: Number(msg.type),
+            createdAt: msg.created_at
+          }))
+        });
+
+      } catch (recentError) {
+        console.error("Error fetching recent messages:", recentError);
+        return res.status(200).json({
+          success: true,
+          ...stats,
+          recentMessages: []
+        });
+      }
+
+    } catch (error) {
+      console.error("Error fetching message stats:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch message statistics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.get("/api/activities", authenticateRequest, async (req, res) => {
+    try {
+      const user = (req as any).user;
+
+      // Fetch activities from credit_transactions and combine them
+      const activities = await db.execute(sql`
+        SELECT 
+          id,
+          CASE 
+            WHEN description LIKE '%search%' THEN 'search'
+            WHEN description LIKE '%message%' THEN 'message'
+            WHEN description LIKE '%email%' THEN 'email'
+            WHEN description LIKE '%contact%' THEN 'contact'
+            WHEN description LIKE '%company%' THEN 'company'
+            ELSE 'other'
+          END as type,
+          description,
+          created_at as timestamp
+        FROM credit_transactions 
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+        LIMIT 20
+      `);
+
+      return res.status(200).json({
+        success: true,
+        activities: activities.map(activity => ({
+          id: activity.id,
+          type: activity.type,
+          description: activity.description,
+          timestamp: activity.timestamp
+        }))
+      });
+
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch activities"
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
