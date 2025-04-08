@@ -1072,8 +1072,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // In a real implementation, this would call an external service
         // For this demo, we'll generate a fake email
-        const companyDomain = contact.companyId
-          ? (await storage.getCompany(contact.companyId))?.website?.split(
+        const companyDomain = contact.account_id
+          ? (await storage.getCompany(contact.account_id))?.website?.split(
               "https://",
             )[1] || "example.com"
           : "example.com";
