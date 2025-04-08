@@ -72,14 +72,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-<<<<<<< HEAD
-  const PORT = Number(process.env.PORT) || 5000;
-  const HOST = process.env.HOST || "127.0.0.1";
-=======
   // ✅ Start the server on `0.0.0.0` (for Replit environment)
   const PORT = 5000;
   const HOST = "127.0.0.1"; // Use 0.0.0.0 for Replit environment
->>>>>>> d1f992a8b4dd4a4c4b85a88a722bdd08a5a6c1ad
 
   server.listen(PORT, HOST, () => {
     log(`🚀 Server running at http://${HOST}:${PORT} (${isDev ? "dev" : "prod"})`);

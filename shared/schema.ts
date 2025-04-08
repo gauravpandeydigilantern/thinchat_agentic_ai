@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   accountStatus: text("account_status").default("active"),
   verified: boolean("verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  user_token: text("user_token"),
 });
 
 // Companies table for tracking organizations

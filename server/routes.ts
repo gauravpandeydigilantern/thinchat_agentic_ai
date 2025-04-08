@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { dbStorage as storage } from "./dbStorage";
 import { db } from "./db";
 import { eq } from 'drizzle-orm';
+import crypto from 'crypto';
 // const winston = require('winston');
 import {
   insertUserSchema,
@@ -14,7 +15,8 @@ import {
   insertCompanySchema,
   InsertUser,
   contacts,
-  companies
+  companies,
+  users
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -180,6 +182,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ message: "Missing user data from previous steps" });
       }
 
+      const passwordHash = await createHash(req.body.userData.fullName);
+      // console.log("Password Hash:", passwordHash);
+      // return res
+      // .status(400)
+      // .json({ message: "Missing user data from previous steps" });
       const userData: InsertUser = {
         fullName: req.body.userData.fullName,
         email: req.body.userData.email,
@@ -189,8 +196,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: req.body.userData.role,
         credits: 100, // Default starting credits
         verified: true, // Since we've verified in step 3
+        user_token: passwordHash,
       };
-
+      console.log("User Data:", userData);
+      // return;
       const user = await storage.createUser(userData);
 
       // Generate token
@@ -253,6 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role || "Sales Manager",
         credits: 125,
         verified: true,
+        user_token: createHash(fullName || "Demo User"),
       };
 
       console.log("Creating demo user:", userData.email);
@@ -277,6 +287,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Server error" });
     }
   });
+
+  async function createHash(data:any, algorithm = 'sha256', encoding = 'hex') {
+    return crypto
+      .createHash(algorithm)
+      .update(data)
+      .digest(encoding);
+  }
 
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -456,13 +473,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   
-  app.post("/api/linkedindata", authenticateRequest, async (req, res) => {
+  app.post("/api/linkedindata/:id", authenticateRequest, async (req, res) => {
     try {
       // console.log(res,'res');
       // console.log(req,'req');
+      const usertoken = req.params.id;
+      if(!usertoken){
+        return res.status(400).json({ 
+          error: 'Invalid Url: Expected an object with a profiles array' 
+        });
+      }
+      // return res.status(400).json({ message: usertoken });
       const user = (req as any).user;
       const requestData = req.body;
-      console.log(requestData,'requestData');
+      // console.log(requestData,'requestData');
       // Validate the request structure
       if (!requestData || typeof requestData !== 'object' || !Array.isArray(requestData.profiles)) {
         return res.status(400).json({ 
@@ -490,7 +514,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (a.type === "Account") return -1;
         return 1;
       });
-        
+
+     
+      const userData = await db.query.users.findFirst({
+        where: eq(users.user_token, usertoken)
+      })
+
+      if(!userData){
+        return res.status(400).json({ 
+          error: 'Invalid User: User Not Found' 
+        });
+      }
+      console.log(userData.id,'userData.id');
+        // return res.status(400).json({ message: userData.id });
       for (const item of sortedProfiles) {
         try {
           // Handle Accounts
@@ -505,15 +541,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timestamp: item.timestamp ? 
                 (typeof item.timestamp === 'number' ? new Date(item.timestamp) : new Date(item.timestamp)) : null,
               about: item.about || null,
-              linkedinUrl: item.companyUrl
+              linkedinUrl: item.companyUrl,
+              userId: userData.id,
             };
-            // const result = await db.select()
-            //     .from(companies)
-            //     .where(eq(companies.linkedinUrl, item.companyUrl))
-            //     .limit(1);
-            //   console.log(result.length,'result');
-            //   console.log(result,'result[0].name');
-            //   console.log(item.name,'item.name');
+            
+
             try {
               
               
@@ -555,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 new Date(item.extracted_at || item.extractedAt) : null,
               timestamp: item.timestamp ? 
                 (typeof item.timestamp === 'number' ? new Date(item.timestamp) : new Date(item.timestamp)) : null,
-              // userId: user.id
+                userId: userData.id,
             };
             
             // Look up account if company name is provided

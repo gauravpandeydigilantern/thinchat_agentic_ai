@@ -651,12 +651,12 @@ export default function ContactsNewPage() {
         throw new Error("Failed to verify email");
       }
 
-      const updateResponse = await apiRequest(`/api/contacts/update/${contact.id}`, {
-        method: "POST",
-        body: JSON.stringify({
-          email_verified: true,
-        }),
-      });
+      // const updateResponse = await apiRequest(`/api/contacts/update/${contact.id}`, {
+      //   method: "POST",
+      //   body: JSON.stringify({
+      //     email_verified: true,
+      //   }),
+      // });
 
       return response.json();
     },
