@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import EnrichPage from "@/pages/dashboard/enrich";
 import ContactsPage from "@/pages/dashboard/contacts";
 import CompaniesPage from "@/pages/dashboard/companies";
+import CompaniesFixedPage from "@/pages/dashboard/companies-fixed";
 import AiWriterPage from "@/pages/dashboard/ai-writer";
 import ContactListPage from "@/pages/dashboard/contact-list";
 import CRMIntegrationsPage from "@/pages/dashboard/crm-integrations";
@@ -55,6 +56,12 @@ function Router() {
       <Route path="/dashboard/companies" component={() => (
         <DashboardLayout>
           <ProtectedRoute component={CompaniesPage} />
+        </DashboardLayout>
+      )} />
+      
+      <Route path="/dashboard/companies-fixed" component={() => (
+        <DashboardLayout>
+          <ProtectedRoute component={CompaniesFixedPage} />
         </DashboardLayout>
       )} />
       

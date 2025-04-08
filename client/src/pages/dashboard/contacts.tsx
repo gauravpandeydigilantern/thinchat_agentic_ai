@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SendEmailDialog } from "@/components/contacts/SendEmailDialog";
+import { ContactDetailsDialog } from "@/components/contacts/ContactDetailsDialog";
 import {
   Loader2,
   Plus,
@@ -77,8 +78,9 @@ export default function ContactsNewPage() {
   const [isRevealingEmail, setIsRevealingEmail] = useState(false);
   const [isEnrichmentDialogOpen, setIsEnrichmentDialogOpen] = useState(false);
   const [isLinkedInDialogOpen, setIsLinkedInDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
-
+  
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [verifyingEmailId, setVerifyingEmailId] = useState<number | null>(null);
@@ -108,12 +110,15 @@ export default function ContactsNewPage() {
 
       if (emailResponse.email) {
         // Update contact with found email
-        const updateResponse = await apiRequest(`/api/contacts/update/${contact.id}`, {
-          method: "POST",
-          body: JSON.stringify({
-            email: emailResponse.email,
-          }),
-        });
+        const updateResponse = await apiRequest(
+          `/api/contacts/update/${contact.id}`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              email: emailResponse.email,
+            }),
+          },
+        );
 
         return {
           ...emailResponse,
@@ -157,7 +162,6 @@ export default function ContactsNewPage() {
     setFindingEmailId(contact.id);
     await findEmailMutation.mutateAsync(contact);
   };
-
 
   // Get user's contacts
   const { data, isLoading } = useQuery({
@@ -222,21 +226,10 @@ export default function ContactsNewPage() {
       id: number;
       contact: ContactFormValues;
     }) => {
-      const response = await apiRequest(`/api/contacts/${id}`, {
+      return apiRequest(`/api/contacts/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
         body: JSON.stringify(contact),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json(); // Read the error response once
-        throw new Error(errorData.message || "Failed to update contact");
-      }
-
-      return response.json(); // Read and return the success response
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
@@ -732,11 +725,13 @@ export default function ContactsNewPage() {
   return (
     <div className="w-full min-h-screen">
       {/* Main container with proper overflow handling */}
-      <div className="max-w-[2000px] mx-auto">
+      <div className="px-4 max-w-[2000px] mx-auto">
         {/* Contacts section */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="w-full">
-            <Card className="overflow-hidden"> {/* Add overflow-hidden to card */}
+            <Card className="overflow-hidden">
+              {" "}
+              {/* Add overflow-hidden to card */}
               <CardHeader className="p-4 border-b">
                 <div className="flex items-center justify-between">
                   <div>
@@ -750,7 +745,6 @@ export default function ContactsNewPage() {
                   </Button>
                 </div>
               </CardHeader>
-
               <CardContent className="p-0">
                 {/* Add responsive table container */}
                 <div className="w-full overflow-auto">
@@ -769,10 +763,8 @@ export default function ContactsNewPage() {
                         setIsDeleteDialogOpen(true);
                       }}
                       onViewDetails={(contact) => {
-                        toast({
-                          title: "View Contact",
-                          description: `Viewing ${contact.fullName}'s details`,
-                        });
+                        setSelectedContact(contact);
+                        setIsDetailsDialogOpen(true);
                       }}
                       onEnrichContact={(contact) => {
                         setSelectedContact(contact);
@@ -804,7 +796,9 @@ export default function ContactsNewPage() {
                     <div className="flex flex-col items-center justify-center py-16">
                       <div className="flex flex-col items-center justify-center mb-4">
                         <Search className="h-12 w-12 text-gray-300 mb-2" />
-                        <h3 className="text-lg font-medium">No contacts found</h3>
+                        <h3 className="text-lg font-medium">
+                          No contacts found
+                        </h3>
                       </div>
                       <p className="text-gray-500 text-center mb-6">
                         {searchTerm
@@ -873,6 +867,7 @@ export default function ContactsNewPage() {
               companies={companiesData?.companies || []}
               onSubmit={(data) => createContactMutation.mutate(data)}
               isSubmitting={createContactMutation.isPending}
+              onCancel={() => setIsCreateDialogOpen(false)}
             />
           </DialogContent>
         </Dialog>
@@ -904,6 +899,10 @@ export default function ContactsNewPage() {
                   })
                 }
                 isSubmitting={updateContactMutation.isPending}
+                onCancel={() => {
+                  setIsEditDialogOpen(false);
+                  setEditContact(null);
+                }}
               />
             )}
           </DialogContent>
@@ -911,13 +910,16 @@ export default function ContactsNewPage() {
 
         {/* Delete Contact Dialog */}
         {selectedContact && (
-          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Delete Contact</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to delete this contact? This action cannot
-                  be undone.
+                  Are you sure you want to delete this contact? This action
+                  cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -929,7 +931,9 @@ export default function ContactsNewPage() {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => deleteContactMutation.mutate(selectedContact.id)}
+                  onClick={() =>
+                    deleteContactMutation.mutate(selectedContact.id)
+                  }
                   disabled={deleteContactMutation.isPending}
                 >
                   {deleteContactMutation.isPending ? (
@@ -1137,7 +1141,9 @@ export default function ContactsNewPage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => enrichContactMutation.mutate(selectedContact.id)}
+                  onClick={() =>
+                    enrichContactMutation.mutate(selectedContact.id)
+                  }
                   disabled={
                     enrichContactMutation.isPending ||
                     getTotalEnrichmentCost() > (user?.credits || 0) ||
@@ -1172,6 +1178,17 @@ export default function ContactsNewPage() {
             setEmailSubject={setEmailSubject}
           />
         )}
+        
+        {/* Contact Details Dialog */}
+        <ContactDetailsDialog
+          contact={selectedContact}
+          open={isDetailsDialogOpen}
+          onOpenChange={setIsDetailsDialogOpen}
+          onEdit={(contact) => {
+            setEditContact(contact);
+            setIsDetailsDialogOpen(false);
+          }}
+        />
       </div>
     </div>
   );

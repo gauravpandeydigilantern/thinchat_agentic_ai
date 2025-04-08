@@ -1,4 +1,3 @@
-
 import React from "react";
 import { UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Building } from "lucide-react";
+import { Company } from "@shared/schema";
 
 const industryOptions = [
   "Technology",
@@ -46,12 +46,16 @@ interface ContactFormProps {
   form: UseFormReturn<any>;
   onSubmit: (data: any) => void;
   isSubmitting: boolean;
+  onCancel?: () => void;
+  companies?: Company[];
 }
 
 export default function ContactForm({ 
   form, 
   onSubmit, 
-  isSubmitting 
+  isSubmitting,
+  onCancel,
+  companies = []
 }: ContactFormProps) {
   return (
     <Form {...form}>
@@ -115,28 +119,102 @@ export default function ContactForm({
             )}
           />
           
+          {companies.length > 0 ? (
+            <FormField
+              control={form.control}
+              name="companyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company</FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      // Handle "manual" option vs company ID
+                      if (value === "manual") {
+                        field.onChange(undefined);
+                        form.setValue('companyName', '');
+                      } else {
+                        field.onChange(value ? parseInt(value) : undefined);
+                        
+                        // Set company name based on selected company id
+                        if (value) {
+                          const selectedCompany = companies.find(c => c.id === parseInt(value));
+                          if (selectedCompany) {
+                            form.setValue('companyName', selectedCompany.name);
+                            // Also set industry if not already set
+                            if (!form.getValues('industry') && selectedCompany.industry) {
+                              form.setValue('industry', selectedCompany.industry);
+                            }
+                          }
+                        }
+                      }
+                    }}
+                    value={field.value ? String(field.value) : undefined}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select existing company" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="manual">Enter company manually</SelectItem>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={String(company.id)}>
+                          <div className="flex items-center">
+                            <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+                            {company.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <FormField
+              control={form.control}
+              name="companyName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Enter company name" 
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e.target.value);
+                        // Clear companyId when manually entering company name
+                        form.setValue('companyId', undefined);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+        
+        {/* Only show manual company name input if company is selected from dropdown */}
+        {companies.length > 0 && !form.getValues('companyId') && (
           <FormField
             control={form.control}
             name="companyName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Company</FormLabel>
+                <FormLabel>Company Name</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Enter company name" 
+                    placeholder="Enter company name manually" 
                     {...field}
-                    onChange={(e) => {
-                      field.onChange(e.target.value);
-                      // Clear companyId when manually entering company name
-                      form.setValue('companyId', undefined);
-                    }}
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
@@ -223,7 +301,7 @@ export default function ContactForm({
         />
         
         <div className="flex justify-end gap-2 pt-4">
-          <Button type="button" variant="outline">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

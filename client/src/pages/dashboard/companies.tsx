@@ -65,6 +65,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
+import { CompaniesTable } from "@/components/companies/CompaniesTable";
+import { CompanyDetailsDialog } from "@/components/companies/CompanyDetailsDialog";
 
 const companyFormSchema = z.object({
   name: z.string().min(2, "Company name is required"),
@@ -85,6 +87,27 @@ export default function CompaniesPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [viewCompany, setViewCompany] = useState<Company | null>(null);
+  
+  // Handlers for company actions
+  const handleViewCompany = (company: Company) => {
+    setViewCompany(company);
+    setIsViewDetailsOpen(true);
+  };
+  
+  const handleViewContacts = (company: Company) => {
+    window.location.href = `/dashboard/contacts?company=${company.id}`;
+  };
+  
+  const handleEditCompany = (company: Company) => {
+    setSelectedCompany(company);
+  };
+  
+  const handleDeleteCompany = (company: Company) => {
+    setSelectedCompany(company);
+    setIsDeleteDialogOpen(true);
+  };
   
   // Get user's companies
   const { data, isLoading } = useQuery({
@@ -103,8 +126,11 @@ export default function CompaniesPage() {
   // Create company mutation
   const createCompanyMutation = useMutation({
     mutationFn: async (company: CompanyFormValues) => {
-      const res = await apiRequest("POST", "/api/companies", company);
-      return res.json();
+      const res = await apiRequest("/api/companies", {
+        method: "POST", 
+        body: JSON.stringify(company)
+      });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
@@ -126,8 +152,11 @@ export default function CompaniesPage() {
   // Update company mutation
   const updateCompanyMutation = useMutation({
     mutationFn: async ({ id, company }: { id: number, company: CompanyFormValues }) => {
-      const res = await apiRequest("PATCH", `/api/companies/${id}`, company);
-      return res.json();
+      const res = await apiRequest(`/api/companies/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(company)
+      });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
@@ -149,8 +178,10 @@ export default function CompaniesPage() {
   // Delete company mutation
   const deleteCompanyMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/companies/${id}`, undefined);
-      return res.json();
+      const res = await apiRequest(`/api/companies/${id}`, {
+        method: "DELETE"
+      });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
@@ -317,109 +348,13 @@ export default function CompaniesPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
             </div>
           ) : filteredCompanies?.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Industry</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCompanies.map((company: Company) => (
-                    <TableRow key={company.id}>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <div className="h-8 w-8 rounded-md bg-primary-100 text-primary-700 flex items-center justify-center mr-3">
-                            <Building2 size={16} />
-                          </div>
-                          <div>
-                            <div className="font-medium">{company.name}</div>
-                            {company.website && (
-                              <a 
-                                href={company.website.startsWith('http') ? company.website : `https://${company.website}`} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="text-xs text-primary-500 hover:underline flex items-center mt-1"
-                              >
-                                <Globe size={10} className="mr-1" />
-                                {company.website.replace(/^https?:\/\//, '')}
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {company.industry ? (
-                          <Badge variant="outline" className={getIndustryColor(company.industry)}>
-                            {company.industry}
-                          </Badge>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {company.location ? (
-                          <div className="flex items-center">
-                            <MapPin size={14} className="mr-1 text-neutral-500" />
-                            {company.location}
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>{getCompanySizeLabel(company.size)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8"
-                            asChild
-                          >
-                            <a href={`/dashboard/contacts?company=${company.id}`}>
-                              <Users size={16} className="text-neutral-500" />
-                            </a>
-                          </Button>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal size={16} className="text-neutral-500" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setSelectedCompany(company)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                <span>Edit Company</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                setSelectedCompany(company);
-                                setIsDeleteDialogOpen(true);
-                              }}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                <span>Delete Company</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <FileText className="mr-2 h-4 w-4" />
-                                <span>View Details</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Users className="mr-2 h-4 w-4" />
-                                <span>View Contacts</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <CompaniesTable 
+              companies={filteredCompanies}
+              onViewCompany={handleViewCompany}
+              onViewContacts={handleViewContacts}
+              onEditCompany={handleEditCompany}
+              onDeleteCompany={handleDeleteCompany}
+            />
           ) : (
             <div className="text-center py-8">
               <p className="text-neutral-500">No companies found</p>
@@ -470,26 +405,45 @@ export default function CompaniesPage() {
         </Dialog>
       )}
       
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Company Confirmation */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Company</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedCompany?.name}? This action cannot be undone.
+              Are you sure you want to delete this company? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
+          <div className="bg-neutral-50 dark:bg-neutral-900 rounded-md p-4 my-2">
+            <div className="flex items-center">
+              <div className="h-8 w-8 rounded-md bg-primary-100 text-primary-700 flex items-center justify-center mr-3">
+                <Building2 size={16} />
+              </div>
+              <div>
+                <div className="font-medium">{selectedCompany?.name}</div>
+                {selectedCompany?.industry && (
+                  <Badge variant="outline" className="mt-1 text-xs">
+                    {selectedCompany.industry}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setSelectedCompany(null);
+              }}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               variant="destructive"
-              onClick={() => deleteCompanyMutation.mutate(selectedCompany!.id)}
+              onClick={() => selectedCompany && deleteCompanyMutation.mutate(selectedCompany.id)}
               disabled={deleteCompanyMutation.isPending}
             >
               {deleteCompanyMutation.isPending ? (
@@ -504,6 +458,16 @@ export default function CompaniesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Company Details Dialog */}
+      <CompanyDetailsDialog
+        company={viewCompany}
+        isOpen={isViewDetailsOpen}
+        onClose={() => {
+          setIsViewDetailsOpen(false);
+          setViewCompany(null);
+        }}
+      />
     </div>
   );
 }
@@ -518,16 +482,6 @@ function CompanyForm({
   onSubmit: (data: CompanyFormValues) => void,
   isSubmitting: boolean
 }) {
-  const industries = [
-    "Technology", "Software", "Healthcare", "Finance", "Manufacturing", 
-    "Retail", "Education", "Consulting", "Marketing", "Real Estate", "Other"
-  ];
-  
-  const companySizes = [
-    "1-10", "11-50", "51-200", "201-500", "501-1000", 
-    "1001-5000", "5001-10000", "10001+"
-  ];
-  
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -536,9 +490,9 @@ function CompanyForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Company Name*</FormLabel>
+              <FormLabel>Company Name <span className="text-red-500">*</span></FormLabel>
               <FormControl>
-                <Input placeholder="Acme Corporation" {...field} />
+                <Input placeholder="Enter company name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -552,38 +506,27 @@ function CompanyForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Industry</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value || ""}
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select industry" />
+                      <SelectValue placeholder="Select an industry" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {industries.map((industry) => (
-                      <SelectItem key={industry} value={industry}>
-                        {industry}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="Technology">Technology</SelectItem>
+                    <SelectItem value="Healthcare">Healthcare</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                    <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="Retail">Retail</SelectItem>
+                    <SelectItem value="Consulting">Consulting</SelectItem>
+                    <SelectItem value="Software">Software</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="website"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Website</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://example.com" {...field} value={field.value || ""} />
-                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -595,9 +538,9 @@ function CompanyForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Company Size</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value || ""}
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -605,14 +548,32 @@ function CompanyForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Unknown</SelectItem>
-                    {companySizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size} employees
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="1-10">1-10 employees</SelectItem>
+                    <SelectItem value="11-50">11-50 employees</SelectItem>
+                    <SelectItem value="51-200">51-200 employees</SelectItem>
+                    <SelectItem value="201-500">201-500 employees</SelectItem>
+                    <SelectItem value="501-1000">501-1000 employees</SelectItem>
+                    <SelectItem value="1001-5000">1001-5000 employees</SelectItem>
+                    <SelectItem value="5001-10000">5001-10000 employees</SelectItem>
+                    <SelectItem value="10001+">10001+ employees</SelectItem>
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="website"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Website</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. www.company.com" {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -625,7 +586,7 @@ function CompanyForm({
               <FormItem>
                 <FormLabel>Location</FormLabel>
                 <FormControl>
-                  <Input placeholder="San Francisco, CA" {...field} value={field.value || ""} />
+                  <Input placeholder="e.g. New York, NY" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -641,10 +602,9 @@ function CompanyForm({
               <FormLabel>Description</FormLabel>
               <FormControl>
                 <Textarea 
-                  placeholder="Brief description of the company" 
+                  placeholder="Describe the company" 
                   className="min-h-[100px]" 
                   {...field} 
-                  value={field.value || ""}
                 />
               </FormControl>
               <FormMessage />
